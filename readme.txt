@@ -1,1 +1,2 @@
-dialogue system for sticker!
+dialogue system
+
