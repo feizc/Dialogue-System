@@ -1,0 +1,1 @@
+dialogue system for sticker!
