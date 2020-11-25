@@ -1,5 +1,6 @@
-make conversion fascinating
+make conversion fascinating: incorporating expression image into dialogue
 author: zcfei
 
-creating a new branch
+dataset and baseline
+
 
