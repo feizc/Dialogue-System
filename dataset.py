@@ -36,8 +36,6 @@ class ExpressionDataset(Dataset):
 
 
 
-
-
 if __name__ == "__main__":
     train_data = ExpressionDataset('./npy_image')
     img, label = train_data[0]

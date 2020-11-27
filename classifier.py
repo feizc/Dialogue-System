@@ -2,13 +2,26 @@ from efficientnet_pytorch import EfficientNet
 import torchvision.transforms as transformers
 from PIL import Image
 import torch
+from torch.utils import data 
 
 from dataset import ExpressionDataset
 
 # dataset load
 train_dataset = ExpressionDataset('./npy_image')
+params = {'batch_size':1, 'shuffle':True}
 
-print(train_dataset[0])
+train_loader = data.DataLoader(train_dataset, **params)
+
+use_cuda = torch.cuda.is_available()
+print(use_cuda)
+
+# model
+model = EfficientNet.from_pretrained('efficientnet-b0')
+model._fc.out_features = 1200
+# print(model)
+
+#for image, label in train_loader:
+#    print(label)
 
 
 
