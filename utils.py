@@ -22,7 +22,7 @@ def image_file_construct(source_path, target_path):
 
             # 读取图片对应的标签
             if name_path[-3:] == 'txt':
-                print(name_path)
+                # print(name_path)
                 with open(name_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
                 for line in lines:
@@ -31,9 +31,11 @@ def image_file_construct(source_path, target_path):
             else:
                 shutil.copy(name_path,image_target_path)
     
-    with open(json_target_path, 'w', encoding='utf-8') as f:
-        json.dump(img_label_dict, f, indent=4)
-    print(img_label_dict)
+    return img_label_dict
+    # with open(json_target_path, 'w', encoding='utf-8') as f:
+    #     json.dump(img_label_dict, f, indent=4)
+    # print(img_label_dict)
+
 
 # 将vocab文件转为json格式方便读取
 def vocab2json(fold_path):
@@ -44,11 +46,38 @@ def vocab2json(fold_path):
     for line in lines:
         line = line.split()
         tag2label_dict[line[0]] = line[1]
-    with open(os.path.join(fold_path, 'tag2label.json'), 'w', encoding='utf-8') as f:
-        json.dump(tag2label_dict, f, indent=4)
+    return tag2label_dict
+    # with open(os.path.join(fold_path, 'tag2label.json'), 'w', encoding='utf-8') as f:
+    #     json.dump(tag2label_dict, f, indent=4)
+
+
+# 生成图片对应label的json文件
+def label2json(img_tag_dict, tag_label_dict, output_fold):
+    img_label_dict = {}
+    for image_name in img_tag_dict.keys():
+        tag = img_tag_dict[image_name]
+        if tag in tag_label_dict.keys():
+            img_label_dict[image_name] = tag_label_dict[tag]
+        else:
+            print(tag)
+    # print(img_label_dict)
+    with open(os.path.join(output_fold, 'img2label.json'), 'w', encoding='utf-8') as f:
+        json.dump(img_label_dict, f, indent=4)
+    
+    return img_label_dict 
+
+
+# 去掉部分无效的表情图片
+def remove_img(img_fold, dict):
+    img_list = os.listdir(img_fold)
+    for name in img_list:
+        if name[:-4] not in dict.keys() and name[-3:] == 'npy':
+            path = os.path.join(img_fold, name)
+            os.remove(path)
 
 
 if __name__ == "__main__":
-    print('haha')
-    # image_file_construct('./npy_image/npy_stickers', './npy_image')
-    # vocab2json('./npy_image')
+    img_tag_dict = image_file_construct('./npy_image/npy_stickers', './npy_image')
+    tag2label_dict = vocab2json('./npy_image')
+    img_label_dict = label2json(img_tag_dict, tag2label_dict, './npy_image')
+    remove_img('./npy_image/image', img_label_dict)

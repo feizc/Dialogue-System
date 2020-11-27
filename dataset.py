@@ -13,10 +13,9 @@ class ExpressionDataset(Dataset):
         self.image_path = os.path.join(data_folder, 'image')
         self.image_name_list = os.listdir(self.image_path)
         # print(self.image_name_list)
-        with open(os.path.join(data_folder, 'img2tag.json'), 'r', encoding='utf-8') as f:
-            self.img2tag_dict = json.load(f)
-        with open(os.path.join(data_folder, 'tag2label.json'), 'r', encoding='utf-8') as f:
-            self.tag2label_dict = json.load(f)
+        with open(os.path.join(data_folder, 'img2label.json'), 'r', encoding='utf-8') as f:
+            self.img2label_dict = json.load(f)
+
         
     def __getitem__(self, i):
         current_image_path = os.path.join(self.image_path, self.image_name_list[i])
@@ -25,8 +24,8 @@ class ExpressionDataset(Dataset):
         # plt.imshow(img)
         # plt.show()
         img = tfms(Image.fromarray(img))
-        tag = self.img2tag_dict[self.image_name_list[i][:-4]]
-        label = np.array(int(self.tag2label_dict[tag]))
+        label = self.img2label_dict[self.image_name_list[i][:-4]]
+        label = np.array(int(label))
         label = torch.from_numpy(label)
         return img, label
         

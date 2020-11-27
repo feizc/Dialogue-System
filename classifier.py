@@ -13,15 +13,15 @@ params = {'batch_size':1, 'shuffle':True}
 train_loader = data.DataLoader(train_dataset, **params)
 
 use_cuda = torch.cuda.is_available()
-print(use_cuda)
+device = torch.device("cuda" if use_cuda else "cpu")
 
 # model
 model = EfficientNet.from_pretrained('efficientnet-b0')
 model._fc.out_features = 1200
 # print(model)
 
-#for image, label in train_loader:
-#    print(label)
+for image, label in train_loader:
+    print(label)
 
 
 
