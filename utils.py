@@ -5,7 +5,7 @@ import json
 # 将图片和标记放到一个文件夹，方便读取
 def image_file_construct(source_path, target_path):
     image_target_path = os.path.join(target_path, 'image')
-    json_target_path = os.path.join(target_path, 'img_label.json')
+    json_target_path = os.path.join(target_path, 'img2tag.json')
 
     if not os.path.exists(image_target_path):
         os.mkdir(image_target_path)

@@ -5,6 +5,11 @@ from PIL import Image, ImageSequence
 from skimage import io, transform
 import matplotlib.pyplot as plt  
 
+
+
+
+
+'''
 # 读取jpg
 img = io.imread('./image/大意.jpg')
 img = transform.resize(img,(256,256,3))
@@ -21,3 +26,4 @@ for g in iter:
     print(img.shape)
     #plt.imshow(gif)
     #plt.show()
+'''
