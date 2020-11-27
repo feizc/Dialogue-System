@@ -11,8 +11,11 @@ import matplotlib.pyplot as plt
 class ExpressionDataset(Dataset):
     def __init__(self, data_folder):
         self.image_path = os.path.join(data_folder, 'image')
-        self.image_name_list = os.listdir(self.image_path)
-        # print(self.image_name_list)
+        files = os.listdir(self.image_path)
+        self.image_name_list = []
+        for file in files:
+            if file[-3:] == 'npy':
+                self.image_name_list.append(file)
         with open(os.path.join(data_folder, 'img2label.json'), 'r', encoding='utf-8') as f:
             self.img2label_dict = json.load(f)
 
@@ -20,7 +23,7 @@ class ExpressionDataset(Dataset):
     def __getitem__(self, i):
         current_image_path = os.path.join(self.image_path, self.image_name_list[i])
         tfms = transformers.Compose([transformers.Resize(224), transformers.ToTensor(), transformers.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
-        img = np.load(current_image_path)
+        img = np.load(current_image_path, allow_pickle=True, encoding='bytes')
         # plt.imshow(img)
         # plt.show()
         img = tfms(Image.fromarray(img))
