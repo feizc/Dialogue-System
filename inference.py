@@ -6,6 +6,7 @@ import os
 tokenizer = AutoTokenizer.from_pretrained('./DialoGPT-small')
 model = AutoModelForCausalLM.from_pretrained('./DialoGPT-small')
 
+
 input = tokenizer.encode('what is your name? ' + tokenizer.eos_token)
 respond = model.generate(torch.from_numpy(np.array([input])), max_length=100,pad_token_id=tokenizer.eos_token_id)
 print(respond)
