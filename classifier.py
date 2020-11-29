@@ -18,7 +18,7 @@ epochs = 1
 output_fold = './model'
 
 # dataset load
-train_dataset = ExpressionDataset('./npy_image')
+train_dataset = ExpressionDataset('./data/npy_image')
 params = {'batch_size':2, 'shuffle':True}
 
 train_loader = data.DataLoader(train_dataset, **params)
