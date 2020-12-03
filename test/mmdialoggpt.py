@@ -1,13 +1,66 @@
 # coding=utf-8
-from transformers import *
-import math
+# Copyright 2018 The OpenAI Team Authors and HuggingFace Inc. team.
+# Copyright (c) 2018, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""PyTorch OpenAI GPT-2 model."""
+
+import os
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss, MSELoss
 
+from transformers import *
+from transformers.activations import ACT2FN 
+from transformers.file_utils import (
+    ModelOutput,
+    add_code_sample_docstrings,
+    add_start_docstrings,
+    add_start_docstrings_to_model_forward,
+    replace_return_docstrings,
+)
+from transformers.modeling_outputs import (
+    BaseModelOutputWithPastAndCrossAttentions,
+    CausalLMOutputWithPastAndCrossAttentions,
+    SequenceClassifierOutputWithPast,
+)
+from transformers.modeling_utils import (
+    Conv1D,
+    PreTrainedModel,
+    SequenceSummary,
+    find_pruneable_heads_and_indices,
+    prune_conv1d_layer,
+)
+from transformers.utils import logging
+from transformers.configuration_gpt2 import GPT2Config
 
-def gleu(x):
-    return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+
+logger = logging.get_logger(__name__)
+
+_CONFIG_FOR_DOC = "GPT2Config"
+_TOKENIZER_FOR_DOC = "GPT2Tokenizer"
+
+GPT2_PRETRAINED_MODEL_ARCHIVE_LIST = [
+    "gpt2",
+    "gpt2-medium",
+    "gpt2-large",
+    "gpt2-xl",
+    "distilgpt2",
+    # See all GPT-2 models at https://huggingface.co/models?filter=gpt2
+]
 
 
 class Attention(nn.Module):
@@ -214,6 +267,101 @@ class Block(nn.Module):
         outputs = [hidden_states] + outputs
         return outputs  # hidden_states, present, (attentions, cross_attentions)
 
+
+class MMdialogGPT(GPT2Model):
+    def __init__(self, config):
+        super(MMdialogGPT, self).__init__(config)
+        self.h = nn.ModuleList([Block(config.n_ctx, config, scale=True) for _ in range(config.n_layer)])
+
+    def forward(
+        self, 
+        input_embs, 
+        past_key_values=None, 
+        attention_mask=None, 
+        token_type_ids=None, 
+        position_ids=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        head_mask=None):
+
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        # input_embs = [bsz, seq_len, config.n_emb:768]
+        input_shape = input_embs.size()[:-1] # [bsz, seq_len]
+        batch_size = input_embs.shape[0]
+
+        if token_type_ids is not None:
+            token_type_ids = token_type_ids.view(-1, input_shape[-1])
+            token_type_embs = self.wte(token_type_ids)
+        else:
+            token_type_embs = 0
+        
+        if position_ids is not None:
+            position_ids = position_ids.view(-1, input_shape[-1])
+        
+        if past_key_values is None:
+            past_length = 0
+            past_key_values = [None]*len(self.h)
+        else:
+            past_length = past_key_values[0][0].size(-2)
+        
+        if position_ids is None:
+            position_ids = torch.arange(past_length, input_shape[-1]+past_length, dtype=torch.long, device=input_embs.device)
+            position_ids = position_ids.unsqueeze(0).view(-1,input_shape[-1])
+
+        # Attention
+        if attention_mask is not None:
+            assert batch_size > 0, "batch_size has to be defined and > 0"
+            attention_mask = attention_mask.view(batch_size, -1)
+            attention_mask = attention_mask[:, None, None, :]
+            attention_mask = attention_mask.to(dtype=self.dtype)
+            attention_mask = (1.0 - attention_mask)*-10000.0
+
+                
+        head_mask = self.get_head_mask(head_mask, self.config.n_layer)
+
+        position_embs = self.wpe(position_ids)
+        hidden_states = input_embs + position_embs + token_type_embs 
+        # hidden_states [bsz, seq_len, n_emb]
+        hidden_states = self.drop(hidden_states)
+
+        output_shape = input_shape + (hidden_states.size(-1),)
+        # output_shape [bsz, seq_len, n_emb]
+
+        presents = () if use_cache else None
+        all_attentions = () if output_attentions else None
+        all_hidden_states = () if output_hidden_states else None
+
+        for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
+            if output_hidden_states:
+                all_hidden_states = all_hidden_states + (hidden_states.view(*output_shape),)
+            outputs = block(hidden_states, 
+                            layer_past=layer_past,
+                            attention_mask=attention_mask,
+                            head_mask=head_mask[i],
+                            use_cache=use_cache,
+                            output_attentions=output_attentions)
+            hidden_states, present = outputs[:2]
+            # hidden_states [bsz, seq_len, n_emb]
+            if use_cache is True:
+                presents = presents + (present,)
+            if output_attentions:
+                all_attentions = all_attentions + (outputs[2],)
+        
+        hidden_states = self.ln_f(hidden_states)
+        hidden_states = hidden_states.view(*output_shape)
+        if output_hidden_states:
+            all_hidden_states = all_hidden_states + (hidden_states,)
+        return tuple(v for v in [hidden_states, presents, all_hidden_states, all_attentions] if v is not None)
+
+
+
+        
 
 
 
