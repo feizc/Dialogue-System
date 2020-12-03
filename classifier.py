@@ -15,10 +15,10 @@ lr = 1e-3
 lr_decoy = 0.99 
 num_classes = 4460 
 epochs = 1
-output_fold = './model'
+output_fold = './model_ckpt'
 
 # dataset load
-train_dataset = ExpressionDataset('./data/npy_image')
+train_dataset = ExpressionDataset('./data/pretrain_sticker')
 params = {'batch_size':2, 'shuffle':True}
 
 train_loader = data.DataLoader(train_dataset, **params)

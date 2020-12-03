@@ -39,6 +39,6 @@ class ExpressionDataset(Dataset):
 
 
 if __name__ == "__main__":
-    train_data = ExpressionDataset('./npy_image')
+    train_data = ExpressionDataset('./data/pretrain_sticker')
     img, label = train_data[0]
     print(img, label)
