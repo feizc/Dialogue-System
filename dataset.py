@@ -8,6 +8,7 @@ import torchvision.transforms as transformers
 from PIL import Image
 import matplotlib.pyplot as plt  
 
+
 class ExpressionDataset(Dataset):
     def __init__(self, data_folder):
         self.image_path = os.path.join(data_folder, 'image')
@@ -39,6 +40,6 @@ class ExpressionDataset(Dataset):
 
 
 if __name__ == "__main__":
-    train_data = ExpressionDataset('./data/pretrain_sticker')
+    train_data = ExpressionDataset('./data/pretrain_data')
     img, label = train_data[0]
     print(img, label)
