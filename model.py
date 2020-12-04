@@ -1,7 +1,8 @@
 import torch
 from torch import nn 
+import os
 
-from transformers import GPT2Model, GPT2PreTrainedModel, GPT2Config
+from transformers import GPT2Model, GPT2PreTrainedModel, GPT2Config, BertTokenizer
 
 class MMdialog(GPT2PreTrainedModel):
     def __init__(self, config):
@@ -19,11 +20,6 @@ class MMdialog(GPT2PreTrainedModel):
         transformer_outputs = self.transformer(inputs_embeds=input_embs)
         return transformer_outputs[0]
 
-if __name__ == "__main__":
 
-    config = GPT2Config(vocab_size=13088)
-    mmdialog = MMdialog(config)
-    input = torch.rand(3,7,768)
-    print(mmdialog(input).shape)
 
 
