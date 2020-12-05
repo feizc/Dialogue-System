@@ -1,7 +1,10 @@
 import os 
 import xlrd 
 import json
-
+from efficientnet_pytorch import EfficientNet
+from PIL import Image 
+import torchvision
+import torchvision.transforms as transformers
 
 SPEAKER = ['[speaker1]', '[speaker2]']
 
@@ -59,6 +62,16 @@ def format_modify(lines, img2id):
             
 
 
+# 对每个句子取消分词
+def delete_space(data_dict):
+    for dialog in data_dict.keys():
+        for respond in data_dict[dialog]:
+            if 'txt' in respond.keys():
+                tmp = respond['txt']
+                respond['txt'] = tmp.replace(' ', '')
+    return data_dict
+
+
 # 生成json数据集文件
 def data2json(lines, img2id):
     data = {}
@@ -107,16 +120,48 @@ def data2json(lines, img2id):
                 dialogue_content.append(sentence) 
             data[dialogue_id] = dialogue_content
         i += 1
+    data = delete_space(data)
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
     
 
 
+# 对每张表情提取特征，存入json
+def image_process(path, model, img2id_dict):
+    tsfm = transformers.Compose([transformers.Resize((224)),\
+        transformers.ToTensor(),\
+        transformers.Normalize(mean=[0.485,0.456,0.406], std=[0.229, 0.224, 0.225]),])
+    image_path = os.path.join(path, 'image')
+    image_list = os.listdir(image_path)
+
+    id2feature = {}
+    for img_name in image_list:
+        img_path = os.path.join(image_path, img_name)
+        img = Image.open(img_path).convert('RGB')
+        img = tsfm(img).unsqueeze(0)
+        feature = model.extract_features(img)
+        feature = feature.squeeze(0).detach().numpy().tolist()
+        id2feature[img2id_dict[img_name]] = feature
+        
+    with open('id2feature.json', 'w', encoding='utf-8') as f:
+        json.dump(id2feature, f)
+
+
 
 if __name__ == "__main__":
+
+    
+    # excel 文字处理
     data_path = os.getcwd()
     excel_path = os.path.join(data_path, 'dialogue.xlsx')
     img2id_dict = img2id(data_path)
+    
     lines = excel_read(excel_path)
     lines = format_modify(lines, img2id_dict)
     data2json(lines, img2id_dict)
+
+
+    # 表情特征处理
+    model = EfficientNet.from_pretrained('efficientnet-b0')
+    print(model)
+    # image_process(data_path, model, img2id_dict)

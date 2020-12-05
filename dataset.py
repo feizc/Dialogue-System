@@ -7,11 +7,12 @@ import numpy as np
 import torchvision.transforms as transformers
 from PIL import Image
 import matplotlib.pyplot as plt  
-from transformers import BertTokenizer
+from transformers import BertTokenizer 
+import copy
 
 
-SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[TXT]', '[IMG]', '[PAD]']
-SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TXT]'], 'pad_token':'[PAD]'}
+SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]', '[PAD]']
+SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
 
 
 # 预训练表情和对应情感的标签分类
@@ -52,6 +53,7 @@ def tokenize(obj, tokenizer):
     return list(tokenize(o) for i in obj)
 
 
+# 将训练集拆分成 history + answer 形式
 def get_data(tokenizer, data_path, feature_path):
     dialog_data = json.load(open(data_path, 'r'))
     dialog_list = []
@@ -63,17 +65,100 @@ def get_data(tokenizer, data_path, feature_path):
                 dialog[i]['txt'] = tokenize(dialog[i]['txt'], tokenizer)
             if i == 0:
                 history.append(dialog[i])
-                print(history)
                 continue
-            item = {'history': history, 'answer':dialog[i]}
+            item = {'history': copy.deepcopy(history), 'answer': copy.deepcopy(dialog[i])}
             dialog_list.append(item)
             history.append(dialog[i])
-    #print(dialog_list[0])
+    id2feature = json.load(open(feature_path, 'r'))
+
+    return dialog_list, id2feature
 
 
+class MMDataset(Dataset):
+    def __init__(self, dialogs, id2feature):
+        self.dialogs = dialogs
+        self.id2feature = id2feature
+    
+    def __len__(self):
+        return len(self.dialogs)
+    
+    def __getitem__(self, index):
+        his = self.dialogs[index]['history']
+        ans = self.dialogs[index]['answer']
+
+        for i in range(len(his)):
+            if 'img_id' in his[i].keys():
+                his[i]['img_id'] = id2feature[his[i]['img_id']]
+        if 'img_id' in ans.keys():
+            ans['img_id'] = id2feature[ans['img_id']]
+        
+        return his, ans
 
 
+# 需要转为Tensoer的拼接
+def build_input_from_segments(history, answer, tokenizer, word_embedding, image_embedding): 
+    bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
 
+    inp_embs = [], token_type_ids = [], labels = []
+    for turn in history:
+        if turn['speaker_id'] == 'speaker1':
+            speaker_id = speaker1
+        else:
+            speaker_id = speaker2
+        inp_embs.append(word_embedding(speaker_id))
+        token_type_ids.append(speaker_id)
+        labels.append(-100.0)
+        if 'txt' in turn.keys():
+            inp_embs.append(word_embedding(bos))
+            token_type_ids.append(speaker_id)
+            labels.append(-100.0)
+
+            for word_id in turn['txt']:
+                inp_embs.append(word_embedding(word_id))
+                token_type_ids.append(speaker_id)
+                labels.append(-100.0)
+            
+            inp_embs.append(word_embedding(eos))
+            token_type_ids.append(speaker_id)
+            labels.append(-100.0)
+
+        if 'img_id' in turn.keys():
+            inp_embs.append(image_embedding(turn['img_id']))
+            token_type_ids.append(img)
+            labels.append(-100.0)
+    
+    # 将答案编码
+    if answer['speaker_id'] == 'speaker1':
+        speaker_id = speaker1
+    else:
+        speaker_id = speaker2
+    inp_embs.append(word_embedding(speaker_id))
+    token_type_ids.append(speaker_id)
+    labels.append(-100.0)
+    if 'txt' in answer.keys():
+        inp_embs.append(word_embedding(bos))
+        token_type_ids.append(speaker_id)
+
+        for word_id in turn['txt']:
+            inp_embs.append(word_embedding(word_id))
+            token_type_ids.append(speaker_id)
+            labels.append(word_id)
+            
+        inp_embs.append(word_embedding(eos))
+        token_type_ids.append(speaker_id)
+        labels.append(eos)
+        labels.append(-100.0)
+    
+    image_flag = False
+    target_feature = None
+    if 'img_id' in answer.keys():
+        target_feature = image_embedding(turn['img_id'])
+        image_flag = True
+
+    inp_embs.append(tag)
+    token_type_ids.append(img)
+
+    return inp_embs, token_type_ids, labels, image_flag, target_feature
 
 
 
@@ -89,4 +174,7 @@ if __name__ == "__main__":
     feature_path = './data/id2feature.json'
     
     tokenizer = BertTokenizer.from_pretrained('./ckpt/cdial-gpt', do_lower_case=True)
-    get_data(tokenizer, data_path, feature_path)
+    dialogs, id2feature = get_data(tokenizer, data_path, feature_path)
+    dataset = MMDataset(dialogs, id2feature)
+    
+    print(dataset[0])
