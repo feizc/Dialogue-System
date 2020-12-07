@@ -75,9 +75,10 @@ def get_data(tokenizer, data_path, feature_path):
 
 
 class MMDataset(Dataset):
-    def __init__(self, dialogs, id2feature):
+    def __init__(self, dialogs, id2feature, tokenizer):
         self.dialogs = dialogs
         self.id2feature = id2feature
+        self.tokenizer = tokenizer
     
     def __len__(self):
         return len(self.dialogs)
@@ -92,9 +93,66 @@ class MMDataset(Dataset):
         if 'img_id' in ans.keys():
             ans['img_id'] = id2feature[ans['img_id']]
         
-        return his, ans
+        history_txt, history_img, token_type_ids, labels = build_input_from_segments(his, ans, self.tokenizer) 
+        print(history_txt)
+        history_txt = torch.LongTensor(history_txt)
+        history_img = torch.from_numpy(np.array(history_img)).float()
+        token_type_ids = torch.Tensor(token_type_ids).long()
+        labels = torch.Tensor(labels).long()
+
+        return history_txt, history_img, token_type_ids, labels
 
 
+# 将文字和图像分开拼接，toekn type记录位置
+def build_input_from_segments(history, answer, tokenizer):
+    bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
+    history_txt = []
+    history_img = []
+    token_type_ids = []
+    labels = []
+    for turn in history:
+        if turn['speaker_id'] == '[speaker1]':
+            speaker_id = speaker1
+        else:
+            speaker_id = speaker2
+        history_txt += [speaker_id]
+        token_type_ids += [speaker_id]
+        labels += [-10000]
+        if 'txt' in turn.keys():
+            content = [bos] + turn['txt'] + [eos]
+            history_txt += content
+            token_type_ids += [speaker_id]*len(content)
+            labels += [-10000]*len(content)
+        if 'img' in turn.keys():
+            history_img.append(turn[img])
+            token_type_ids += img
+            labels+= [-10000]
+    
+    if answer['speaker_id'] == '[speaker1]':
+        speaker_id = speaker1
+    else:
+        speaker_id = speaker2
+    
+    history_txt += [speaker_id]
+    token_type_ids += [speaker_id]
+
+    if 'txt' in turn.keys():
+        content = [bos] + turn['txt'] + [eos]
+        history_txt += content
+        token_type_ids += [speaker_id]*len(content)
+        labels += content
+    labels +=[-10000]
+    history_txt += [tag]
+    token_type_ids += [img]
+    if 'img' in turn.keys():
+        history_img.append(turn['img'])
+    
+    return history_txt, history_img, token_type_ids, labels
+
+
+
+
+'''
 # 需要转为Tensoer的拼接
 def build_input_from_segments(history, answer, tokenizer, word_embedding, image_embedding): 
     bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
@@ -159,7 +217,7 @@ def build_input_from_segments(history, answer, tokenizer, word_embedding, image_
     token_type_ids.append(img)
 
     return inp_embs, token_type_ids, labels, image_flag, target_feature
-
+'''
 
 
 
@@ -175,6 +233,9 @@ if __name__ == "__main__":
     
     tokenizer = BertTokenizer.from_pretrained('./ckpt/cdial-gpt', do_lower_case=True)
     dialogs, id2feature = get_data(tokenizer, data_path, feature_path)
-    dataset = MMDataset(dialogs, id2feature)
+    print(dialogs[0])
+    dataset = MMDataset(dialogs, id2feature, tokenizer)
     
-    print(dataset[0])
+    for item in dataset:
+        _, _, _, labels = item
+        print(labels)
