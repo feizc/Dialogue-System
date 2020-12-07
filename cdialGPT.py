@@ -6,7 +6,7 @@ tokenizer = BertTokenizer.from_pretrained('./ckpt/cdial-gpt', do_lower_case=True
 model = GPT2LMHeadModel.from_pretrained('./ckpt/cdial-gpt')
 
 
-input = ['你好啊']
+input = ['[CLS]你好，你叫什么名字[SEP]']
 history = tokenizer.tokenize(input[0])
 history = tokenizer.convert_tokens_to_ids(history)
 history = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(input[0]))

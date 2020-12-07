@@ -4,6 +4,7 @@ import os
 
 from transformers import GPT2Model, GPT2PreTrainedModel 
 
+
 class MMdialog(GPT2PreTrainedModel):
     def __init__(self, config):
         super(MMdialog, self).__init__(config)
@@ -18,8 +19,10 @@ class MMdialog(GPT2PreTrainedModel):
     def tie_weights(self):
         self._tie_or_clone_weights(self.lm_head, self.transformer.wte)
     
-    def forward(self, input_embs):
-        transformer_outputs = self.transformer(inputs_embeds=input_embs)
+    def forward(self, input_embs, token_type_ids, labels, image_feature):
+
+        transformer_outputs = self.transformer(inputs_embeds=input_embs, token_type_ids=token_type_ids)
+        
         return transformer_outputs[0]
 
 

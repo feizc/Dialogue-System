@@ -121,6 +121,7 @@ def data2json(lines, img2id):
             data[dialogue_id] = dialogue_content
         i += 1
     data = delete_space(data)
+    print(data['dialogue 1'])
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
     
@@ -128,7 +129,7 @@ def data2json(lines, img2id):
 
 # 对每张表情提取特征，存入json
 def image_process(path, model, img2id_dict):
-    tsfm = transformers.Compose([transformers.Resize((224)),\
+    tsfm = transformers.Compose([transformers.Resize((224,224)),\
         transformers.ToTensor(),\
         transformers.Normalize(mean=[0.485,0.456,0.406], std=[0.229, 0.224, 0.225]),])
     image_path = os.path.join(path, 'image')
@@ -140,9 +141,11 @@ def image_process(path, model, img2id_dict):
         img = Image.open(img_path).convert('RGB')
         img = tsfm(img).unsqueeze(0)
         feature = model.extract_features(img)
-        feature = feature.squeeze(0).detach().numpy().tolist()
+        feature = feature.squeeze(0).view(1, -1).detach().numpy()
+        print(feature.shape)
+        feature = feature.tolist()
         id2feature[img2id_dict[img_name]] = feature
-        
+
     with open('id2feature.json', 'w', encoding='utf-8') as f:
         json.dump(id2feature, f)
 
@@ -163,5 +166,5 @@ if __name__ == "__main__":
 
     # 表情特征处理
     model = EfficientNet.from_pretrained('efficientnet-b0')
-    print(model)
-    # image_process(data_path, model, img2id_dict)
+    # print(model)
+    image_process(data_path, model, img2id_dict)
