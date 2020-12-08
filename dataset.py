@@ -89,14 +89,16 @@ class MMDataset(Dataset):
 
         for i in range(len(his)):
             if 'img_id' in his[i].keys():
-                his[i]['img_id'] = id2feature[his[i]['img_id']]
+                his[i]['img_id'] = self.id2feature[his[i]['img_id']]
+                
         if 'img_id' in ans.keys():
-            ans['img_id'] = id2feature[ans['img_id']]
+            ans['img_id'] = self.id2feature[ans['img_id']]
         
         history_txt, history_img, token_type_ids, labels = build_input_from_segments(his, ans, self.tokenizer) 
-        print(history_txt)
+        # print(history_img)
         history_txt = torch.LongTensor(history_txt)
         history_img = torch.from_numpy(np.array(history_img)).float()
+        
         token_type_ids = torch.Tensor(token_type_ids).long()
         labels = torch.Tensor(labels).long()
 
@@ -117,17 +119,19 @@ def build_input_from_segments(history, answer, tokenizer):
             speaker_id = speaker2
         history_txt += [speaker_id]
         token_type_ids += [speaker_id]
-        labels += [-10000]
+        labels += [-100]
         if 'txt' in turn.keys():
             content = [bos] + turn['txt'] + [eos]
             history_txt += content
             token_type_ids += [speaker_id]*len(content)
-            labels += [-10000]*len(content)
-        if 'img' in turn.keys():
-            history_img.append(turn[img])
-            token_type_ids += img
-            labels+= [-10000]
-    
+            labels += [-100]*len(content)
+        if 'img_id' in turn.keys():
+            history_img.append(turn['img_id'])
+            #print(np.array(turn['img_id']).shape)
+            token_type_ids += [img]
+            labels+= [-100]
+        
+    #print(np.array(history_img).shape)
     if answer['speaker_id'] == '[speaker1]':
         speaker_id = speaker1
     else:
@@ -136,16 +140,17 @@ def build_input_from_segments(history, answer, tokenizer):
     history_txt += [speaker_id]
     token_type_ids += [speaker_id]
 
-    if 'txt' in turn.keys():
-        content = [bos] + turn['txt'] + [eos]
+    if 'txt' in answer.keys():
+        content = [bos] + answer['txt'] + [eos]
         history_txt += content
         token_type_ids += [speaker_id]*len(content)
         labels += content
-    labels +=[-10000]
+    labels +=[-100]
     history_txt += [tag]
     token_type_ids += [img]
-    if 'img' in turn.keys():
-        history_img.append(turn['img'])
+    if 'img_id' in answer.keys():
+        history_img.append(answer['img_id'])
+    # print(history_img)
     
     return history_txt, history_img, token_type_ids, labels
 
@@ -235,7 +240,10 @@ if __name__ == "__main__":
     dialogs, id2feature = get_data(tokenizer, data_path, feature_path)
     print(dialogs[0])
     dataset = MMDataset(dialogs, id2feature, tokenizer)
-    
+    dataset[0]
+
+    '''
     for item in dataset:
         _, _, _, labels = item
-        print(labels)
+        break
+    '''
