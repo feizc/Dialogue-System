@@ -84,8 +84,8 @@ class MMDataset(Dataset):
         return len(self.dialogs)
     
     def __getitem__(self, index):
-        his = self.dialogs[index]['history']
-        ans = self.dialogs[index]['answer']
+        his = copy.deepcopy(self.dialogs[index]['history'])
+        ans = copy.deepcopy(self.dialogs[index]['answer'])
 
         for i in range(len(his)):
             if 'img_id' in his[i].keys():
@@ -149,7 +149,10 @@ def build_input_from_segments(history, answer, tokenizer):
     history_txt += [tag]
     token_type_ids += [img]
     if 'img_id' in answer.keys():
+    #    print(len(answer['img_id'][0]))
         history_img.append(answer['img_id'])
+    else:
+        history_img.append([0.0]*62720)
     # print(history_img)
     
     return history_txt, history_img, token_type_ids, labels
