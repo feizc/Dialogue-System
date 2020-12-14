@@ -35,8 +35,10 @@ class MMdialog(GPT2PreTrainedModel):
         # print(image_feature)
         # image_tag = torch.zeros((1, input_embs.size(-1))
         if image_feature[0][0] != 0.:
-            # img_regs = self.image_inverse_off(img_hidden_states)
-            img_regs = image_feature
+            #img_regs = self.image_inverse_off(img_hidden_states)
+            img_regs = img_hidden_states
+            #print(img_regs.size())
+            #print(image_feature.size())
             img_loss_fct = MSELoss()
             loss_img = img_loss_fct(img_regs, image_feature)
             loss += loss_img

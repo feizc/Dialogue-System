@@ -14,15 +14,17 @@ feature_path = 'data/id2feature.json'
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 
-epochs = 1
-lr = 6.5e-5
+epochs = 20
+lr = 6.5e-5 
+model_path = 'ckpt/mmgpt'
+
 
 def accuracy_compute(lm_logits, targets, k):
     _, idx = torch.topk(lm_logits, k, 1)
     correct = idx.eq(targets.view(-1,1).expand_as(idx))
     #print(correct)
     correct_total = correct.view(-1).float().sum().item()
-    nums = targets.view(-1).detach().numpy()
+    nums = targets.view(-1).detach().cpu().numpy()
     length = 0
     for num in nums:
         if num != -100:
@@ -76,10 +78,11 @@ def train():
             #print(labels)
 
             optimizer.zero_grad()
-
+            print(history_txt.size())
             history_txt_embs = model.transformer.wte(history_txt)
             history_img_embs = model.image_off(history_img).squeeze(1)
             input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
+            input_embs, img_features = input_embs.to(device), img_features.to(device)
             lm_logits, loss = model(input_embs, token_type_ids, labels, img_features)
         
             loss.backward()
@@ -92,6 +95,9 @@ def train():
             print(loss.item())
             print(acc)
             break
+        break
+        torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
+                    '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc))
         loss_list.append(avg_loss.avg)
         acc_list.append(avg_acc.avg)
         
@@ -133,9 +139,6 @@ def input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenize
         image_feature[0,:] = history_img_embs[img_idx,:]
     return input_embs, image_feature
         
-
-
-
 
 
 if __name__ == "__main__":

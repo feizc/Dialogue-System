@@ -112,25 +112,33 @@ def build_input_from_segments(history, answer, tokenizer):
     history_img = []
     token_type_ids = []
     labels = []
-    for turn in history:
-        if turn['speaker_id'] == '[speaker1]':
+    his_length = len(history)
+    for i in range(his_length):
+        idx = his_length - 1 - i
+        if len(token_type_ids) > 450:
+            break
+
+        if history[idx]['speaker_id'] == '[speaker1]':
             speaker_id = speaker1
         else:
             speaker_id = speaker2
-        history_txt += [speaker_id]
-        token_type_ids += [speaker_id]
-        labels += [-100]
-        if 'txt' in turn.keys():
-            content = [bos] + turn['txt'] + [eos]
-            history_txt += content
-            token_type_ids += [speaker_id]*len(content)
-            labels += [-100]*len(content)
-        if 'img_id' in turn.keys():
-            history_img.append(turn['img_id'])
-            #print(np.array(turn['img_id']).shape)
-            token_type_ids += [img]
-            labels+= [-100]
-        
+
+        if 'img_id' in history[idx].keys():
+            history_img.append(history[idx]['img_id'])
+            #print(np.array(history[idx]['img_id']).shape)
+            token_type_ids = [img] + token_type_ids
+            labels = [-100] + labels
+        if 'txt' in history[idx].keys():
+            content = [bos] + history[idx]['txt'] + [eos]
+            history_txt = content + history_txt
+            token_type_ids = [speaker_id]*len(content) + token_type_ids
+            labels = [-100]*len(content) + labels
+
+        history_txt = [speaker_id] + history_txt
+        token_type_ids = [speaker_id] + token_type_ids 
+        labels = [-100] + labels
+    
+    history_img.reverse()
     #print(np.array(history_img).shape)
     if answer['speaker_id'] == '[speaker1]':
         speaker_id = speaker1
@@ -152,7 +160,7 @@ def build_input_from_segments(history, answer, tokenizer):
     #    print(len(answer['img_id'][0]))
         history_img.append(answer['img_id'])
     else:
-        history_img.append([0.0]*62720)
+        history_img.append([[0.0]*62720])
     # print(history_img)
     
     return history_txt, history_img, token_type_ids, labels
