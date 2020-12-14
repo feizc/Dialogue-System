@@ -72,13 +72,15 @@ def train():
         avg_loss = AverageMeter()
         avg_acc = AverageMeter()
         for instance in dataset:
-            history_txt, history_img, token_type_ids, labels = instance
+            history_txt, history_img, token_type_ids, labels = instance 
+            if token_type_ids.size(0) > 500:
+                continue
             history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
             #print(token_type_ids)
             #print(labels)
 
             optimizer.zero_grad()
-            print(history_txt.size())
+            # print(history_txt.size())
             history_txt_embs = model.transformer.wte(history_txt)
             history_img_embs = model.image_off(history_img).squeeze(1)
             input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
@@ -95,11 +97,13 @@ def train():
             print(loss.item())
             print(acc)
             break
-        break
         torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
-                    '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc))
+                    '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc.avg))
+        model.config.to_json_file(os.path.join(model_path, 'config.json'))
+        tokenizer.save_vocabulary(model_path)
         loss_list.append(avg_loss.avg)
         acc_list.append(avg_acc.avg)
+        break
         
     print(loss_list)
     print(acc_list)
