@@ -20,6 +20,12 @@ class MMdialog(GPT2PreTrainedModel):
     def tie_weights(self):
         self._tie_or_clone_weights(self.lm_head, self.transformer.wte)
     
+    def inference(self, input_embs, token_type_ids):
+        transformer_outputs = self.transformer(inputs_embeds=input_embs, token_type_ids=token_type_ids)
+        hidden_states = transformer_outputs[0]
+        lm_logits = self.lm_head(hidden_states)
+        return lm_logits
+
     def forward(self, input_embs, token_type_ids, labels, image_feature):
 
         transformer_outputs = self.transformer(inputs_embeds=input_embs, token_type_ids=token_type_ids)
