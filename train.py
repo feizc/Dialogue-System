@@ -17,6 +17,8 @@ device = torch.device("cuda" if use_cuda else "cpu")
 epochs = 20
 lr = 6.5e-5 
 model_path = 'ckpt/mmgpt'
+gradient_accumulation_steps = 5 
+
 
 
 def accuracy_compute(lm_logits, targets, k):
@@ -71,7 +73,8 @@ def train():
     for epoch in range(epochs):
         avg_loss = AverageMeter()
         avg_acc = AverageMeter()
-        for instance in dataset:
+        iteration = 1
+        for instance in dataset: 
             history_txt, history_img, token_type_ids, labels = instance 
             if token_type_ids.size(0) > 500:
                 continue
@@ -79,7 +82,6 @@ def train():
             #print(token_type_ids)
             #print(labels)
 
-            optimizer.zero_grad()
             # print(history_txt.size())
             history_txt_embs = model.transformer.wte(history_txt)
             history_img_embs = model.image_off(history_img).squeeze(1)
@@ -90,13 +92,17 @@ def train():
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-            optimizer.step()
+            if iteration % gradient_accumulation_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+                avg_loss.update(loss.item() / gradient_accumulation_steps)
+                break
             acc = accuracy_compute(lm_logits, labels, 5)
-            avg_loss.update(loss.item())
             avg_acc.update(acc)
-            print(loss.item())
-            print(acc)
-            break
+            iteration += 1
+            # print(loss.item())
+            print('acc:', acc)
+
         torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
                     '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc.avg))
         model.config.to_json_file(os.path.join(model_path, 'config.json'))
