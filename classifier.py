@@ -71,9 +71,9 @@ for epoch in range(epochs):
         running_loss += loss.item()
 
         print('[%d epoch] Accuracy: %3f, Loss: %3f' %(epoch+1, accuracy, loss.item()))
-        
+        break
     #if epoch%1 == 0:
-    torch.save(model.state_dict(), os.path.join(output_fold, str(epoch+1)+'_'+str(round(accuracy,4))+'.pth'))
+    torch.save({'model': model.state_dict()}, os.path.join(output_fold, str(epoch+1)+'_'+str(round(accuracy,4))+'.bin'))
 
 print(history_accuracy)
 print(history_loss)

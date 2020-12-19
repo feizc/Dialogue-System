@@ -2,11 +2,11 @@ import torch
 from torch.utils.data import Dataset 
 import os 
 import json 
-from skimage import io, transform 
+#from skimage import io, transform 
 import numpy as np
-import torchvision.transforms as transformers
+import torchvision.transforms as transforms
 from PIL import Image
-import matplotlib.pyplot as plt  
+#import matplotlib.pyplot as plt  
 from transformers import BertTokenizer 
 import copy
 
@@ -30,7 +30,7 @@ class ExpressionDataset(Dataset):
         
     def __getitem__(self, i):
         current_image_path = os.path.join(self.image_path, self.image_name_list[i])
-        tfms = transformers.Compose([transformers.Resize(224), transformers.ToTensor(), transformers.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
+        tfms = transforms.Compose([transforms.Resize(224), transforms.ToTensor(), transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
         img = np.load(current_image_path, allow_pickle=True, encoding='bytes')
         # plt.imshow(img)
         # plt.show()

@@ -14,6 +14,8 @@ def image_file_construct(source_path, target_path, emoji_label_dict):
     files = os.listdir(source_path)
 
     img_label_dict = {}
+    max_imag_num = 30000
+    i = 0 
     for file in files:
         if file[0] == '.':
             continue
@@ -32,6 +34,9 @@ def image_file_construct(source_path, target_path, emoji_label_dict):
                         img_label_dict[line[0]] = emoji_label_dict[line[1][:-1]]
             else:
                 shutil.copy(name_path, image_target_path)
+                i += 1
+        if i >= max_imag_num:
+            break
     # 将标注信息存为json
     with open(json_target_path, 'w', encoding='utf-8') as f:
         json.dump(img_label_dict, f, indent=4)
