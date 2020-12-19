@@ -13,16 +13,16 @@ from dataset import ExpressionDataset
 # parameter
 lr = 1e-3
 lr_decoy = 0.99 
-num_classes = 4460 
-epochs = 1
-output_fold = './classifier_ckpt'
+num_classes = 300 
+epochs = 10
+output_fold = './ckpt/classifier_ckpt'
 
 if not os.path.exists(output_fold):
     os.mkdir(output_fold)
 
 # dataset load
-train_dataset = ExpressionDataset('./data/pretrain_sticker')
-params = {'batch_size':2, 'shuffle':True}
+train_dataset = ExpressionDataset('./data/pretrain_data')
+params = {'batch_size':5, 'shuffle':True}
 
 train_loader = data.DataLoader(train_dataset, **params)
 
@@ -56,21 +56,24 @@ for epoch in range(epochs):
         outputs = model(img)
         
         loss = criterion(outputs, label)
+        loss.backward()
+        optimizer.step()
+
         _, predicted = torch.max(outputs, -1)
         correct += (predicted == label.data).sum().item()
         total += label.size(0)
+        # print(loss)
         accuracy = float(correct) / float(total)
         
         history_accuracy.append(accuracy)
         history_loss.append(loss)
-
-        loss.backward()
-        optimizer.step()
         
         running_loss += loss.item()
 
-        print('[%d epoch] Accuracy: %d' %(epoch+1, 100*correct/total))
+        print('[%d epoch] Accuracy: %3f, Loss: %3f' %(epoch+1, accuracy, loss.item()))
+        
+    #if epoch%1 == 0:
+    torch.save(model.state_dict(), os.path.join(output_fold, str(epoch+1)+'_'+str(round(accuracy,4))+'.pth'))
 
-        if epoch%10 == 0:
-            torch.save(model.state_dict(), os.path.join(output_fold, str(epoch+1)+'_'+str(round(accuracy,4))+'.pth'))
-
+print(history_accuracy)
+print(history_loss)

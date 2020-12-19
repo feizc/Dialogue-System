@@ -71,8 +71,10 @@ def pretrain_data_process():
     source_path = os.path.join(pretrain_data_path, 'npy_stickers')
     target_path = pretrain_data_path
 
+    # 筛选top300的表情，生成dict
     emoji_label_dict = emoji_vocab_read(os.path.join(pretrain_data_path, 'emoji_vocab'))
     print(emoji_label_dict)
+    # 选择有标记的图片，放到\image 文件夹下面 
     img_label_dict = image_file_construct(source_path, target_path, emoji_label_dict)
     remove_img(target_path, img_label_dict)
 
