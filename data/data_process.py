@@ -153,7 +153,7 @@ def image_process(path, model, img2id_dict):
 
 if __name__ == "__main__":
 
-    
+    '''
     # excel 文字处理
     data_path = os.getcwd()
     excel_path = os.path.join(data_path, 'dialogue.xlsx')
@@ -162,9 +162,13 @@ if __name__ == "__main__":
     lines = excel_read(excel_path)
     lines = format_modify(lines, img2id_dict)
     data2json(lines, img2id_dict)
+    '''
 
 
     # 表情特征处理
+    ckpt_path = 'ckpt/classifier_ckpt/model.bin'
     model = EfficientNet.from_pretrained('efficientnet-b0')
+    ckpt = torch.load(ckpt_path, map_location='cpu')
+    model.load_state_dict(ckpt['model']) 
     # print(model)
     image_process(data_path, model, img2id_dict)
