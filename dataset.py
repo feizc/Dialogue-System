@@ -74,11 +74,13 @@ def get_data(tokenizer, data_path, feature_path):
     return dialog_list, id2feature
 
 
-class MMDataset(Dataset):
-    def __init__(self, dialogs, id2feature, tokenizer):
+class MMDataset(Dataset): 
+    # mode: dialog / emotion 
+    def __init__(self, dialogs, id2feature, tokenizer, mode='dialog'):
         self.dialogs = dialogs
         self.id2feature = id2feature
         self.tokenizer = tokenizer
+        self.mode = mode
     
     def __len__(self):
         return len(self.dialogs)
@@ -100,7 +102,13 @@ class MMDataset(Dataset):
         history_img = torch.from_numpy(np.array(history_img)).float()
         
         token_type_ids = torch.Tensor(token_type_ids).long()
-        labels = torch.Tensor(labels).long()
+        labels = torch.Tensor(labels).long() 
+
+        if self.mode == 'emotion': 
+            new_labels = [-100] * labels.size(0)
+            new_labels[-1] = ans['emotion_id']
+            new_labels = torch.Tensor(new_labels).long() 
+            return history_txt, history_img, token_type_ids, new_labels 
 
         return history_txt, history_img, token_type_ids, labels
 

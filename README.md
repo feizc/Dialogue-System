@@ -1,6 +1,5 @@
 # Make conversion fascinating: incorporating visual expression into dialogue generation
 
-Author: zhengcong fei, Zekang Li, ...
 
 ### Contributions
 
@@ -11,7 +10,7 @@ Author: zhengcong fei, Zekang Li, ...
 3. We introduce an unsupervised annotation for visual expression with our model 
  
 
-### implementation 
+### Implementation 
 
 1. Pretrain the expression image feature extractor on the basis of efficientnet 
 
@@ -19,5 +18,9 @@ Author: zhengcong fei, Zekang Li, ...
 
 3. Fine-tune with our model on new dataset 
 
+### Pretrain Task 
 
+1. Visual expression tag predication 
+
+2. Emotion analysis 
 

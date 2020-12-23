@@ -5,14 +5,17 @@ import os
 
 from transformers import GPT2Model, GPT2PreTrainedModel 
 
+emotion_num = 62 
 
-class MMdialog(GPT2PreTrainedModel):
+class MMdialog(GPT2PreTrainedModel): 
+    # mode: dialog / emotion
     def __init__(self, config):
         super(MMdialog, self).__init__(config)
         self.transformer = GPT2Model(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.image_off = nn.Linear(1280*7*7, config.n_embd)
         self.image_inverse_off = nn.Linear(config.n_embd, 1280*7*7)
+        self.emotion_classifier = nn.Linear(config.n_embd, emotion_num)
 
         self.init_weights()
         self.tie_weights()
@@ -26,12 +29,18 @@ class MMdialog(GPT2PreTrainedModel):
         lm_logits = self.lm_head(hidden_states)
         return lm_logits
 
-    def forward(self, input_embs, token_type_ids, labels, image_feature):
+    def forward(self, input_embs, token_type_ids, labels, image_feature, mode='dialog'):
 
         transformer_outputs = self.transformer(inputs_embeds=input_embs, token_type_ids=token_type_ids)
         # outputs = (hidden_states, presents, all_hidden_states, all_self_attentions)
         hidden_states = transformer_outputs[0]
-        txt_hidden_states, img_hidden_states = hidden_states[:-1, :], hidden_states[-1, :].unsqueeze(0)
+        txt_hidden_states, img_hidden_states = hidden_states[:-1, :], hidden_states[-1, :].unsqueeze(0) 
+
+        if mode == 'emotion': 
+            emotion_logits = self.emotion_classifier(img_hidden_states) 
+            emo_loss_fct = CrossEntropyLoss(ignore_index=-100)
+            emo_loss = emo_loss_fct(emotion_logits, labels[-1].view(-1))
+            return emo_loss 
 
         if txt_hidden_states.size(0) > 1:
             lm_logits = self.lm_head(txt_hidden_states)
@@ -49,8 +58,5 @@ class MMdialog(GPT2PreTrainedModel):
             loss_img = img_loss_fct(img_regs, image_feature)
             loss += loss_img
 
-        return lm_logits, loss
-
-
-
+        return lm_logits, loss 
 

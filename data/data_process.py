@@ -3,6 +3,7 @@ import xlrd
 import json
 from efficientnet_pytorch import EfficientNet
 from PIL import Image 
+from collections import Counter 
 #import torchvision
 #import torchvision.transforms as transformers
 
@@ -83,7 +84,7 @@ def delete_space(data_dict):
 
 
 # 生成json数据集文件
-def data2json(lines, img2id, img_dot_name_dict):
+def data2json(lines, img2id, img_dot_name_dict, emotion_dict):
     data = {}
 
     '''
@@ -111,7 +112,10 @@ def data2json(lines, img2id, img_dot_name_dict):
                 sentence = {}
                 sentence['speaker_id'] = SPEAKER[j%2]
                 j += 1
-                if lines[i][1] != '':
+                if lines[i][1] != '': 
+                    emotion = lines[i][2].strip() 
+                    if emotion in emotion_dict.keys(): 
+                        sentence['emotion_id'] = emotion_dict[emotion]
                     left_idx = lines[i][1].find('[')
                     right_idx = lines[i][1].find(']')
                     img_name = lines[i][1][left_idx+1:right_idx]
@@ -178,19 +182,43 @@ def img_dot_name_create(img2id_dict):
     return img_dot_name_dict 
 
 
+# 统计情感相关的标签, 这里可能需要限制情感种类 
+def emotion_label_calculate(lines):
+    emotion_list = []
+    emotion_counter = Counter()
+    for line in lines:
+        if line[2] == '':
+            continue
+        if line[2] not in emotion_list:
+            emotion_list.append(line[2])
+        emotion = line[2].strip()
+        emotion_counter.update([emotion])
+    print(emotion_counter) 
+    emotion_dict = {}
+    i = 0 
+    for emotion in emotion_list:
+        emotion_dict[emotion] = i 
+        i += 1 
+    return emotion_dict 
+
+
+
+
 if __name__ == "__main__":
 
     
     # excel 文字处理
     data_path = os.getcwd()
-    excel_path = os.path.join(data_path, 'dialogue11000_13000完成.xlsx')
+    excel_path = os.path.join(data_path, 'dialogue.xlsx')
     img2id_dict = img2id(data_path)
     img_dot_name_dict = img_dot_name_create(img2id_dict)
 
 
     lines = excel_read(excel_path)
+    emotion_dict = emotion_label_calculate(lines) 
+    print(emotion_dict)
     lines = format_modify(lines, img2id_dict, img_dot_name_dict)
-    #data2json(lines, img2id_dict, img_dot_name_dict)
+    data2json(lines, img2id_dict, img_dot_name_dict, emotion_dict)
     
     '''
     # 表情特征处理
