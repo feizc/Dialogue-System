@@ -3,8 +3,8 @@ import xlrd
 import json
 from efficientnet_pytorch import EfficientNet
 from PIL import Image 
-import torchvision
-import torchvision.transforms as transformers
+#import torchvision
+#import torchvision.transforms as transformers
 
 SPEAKER = ['[speaker1]', '[speaker2]']
 
@@ -37,7 +37,7 @@ def excel_read(path):
 
 
 # 结构调整，将表情放置于对话的后面
-def format_modify(lines, img2id):
+def format_modify(lines, img2id, img_dot_name_dict):
     for i in range(len(lines)):
         lines[i][1] = lines[i][1].strip()
         if lines[i][1] != "":
@@ -45,6 +45,12 @@ def format_modify(lines, img2id):
             right_idx = lines[i][1].find(']')
             img_name = lines[i][1][left_idx+1:right_idx]
             # 表情标注错误
+            img_name = img_name.split('.')[0]
+            if img_name in img_dot_name_dict.keys():
+                img_name = img_dot_name_dict[img_name]
+            if img_name[:-1] in img_dot_name_dict.keys():
+                img_name = img_dot_name_dict[img_name[:-1]]
+
             if img_name not in img2id.keys():
                 print(img_name) 
           
@@ -55,7 +61,11 @@ def format_modify(lines, img2id):
                 continue
             else:
                 tmpline = lines[i][1].split('[')[0]
-                tmpline += lines[i][1].split(']')[1]
+                try:
+                    tmpline += lines[i][1].split(']')[1]
+                except:
+                    print(lines[i][1])
+                    print('not right')
                 tmpline += lines[i][1][left_idx:right_idx+1]
                 lines[i][1] = tmpline
     return lines
@@ -67,13 +77,13 @@ def delete_space(data_dict):
     for dialog in data_dict.keys():
         for respond in data_dict[dialog]:
             if 'txt' in respond.keys():
-                tmp = respond['txt']
+                tmp = str(respond['txt'])
                 respond['txt'] = tmp.replace(' ', '')
     return data_dict
 
 
 # 生成json数据集文件
-def data2json(lines, img2id):
+def data2json(lines, img2id, img_dot_name_dict):
     data = {}
 
     '''
@@ -90,7 +100,7 @@ def data2json(lines, img2id):
     i = 0
 
     while i < len(lines):
-        if 'dialogue' in lines[i][0]:
+        if 'dialogue' in str(lines[i][0]):
             dialogue_id = lines[i][0]
             dialogue_content = []
             j = 0
@@ -105,6 +115,11 @@ def data2json(lines, img2id):
                     left_idx = lines[i][1].find('[')
                     right_idx = lines[i][1].find(']')
                     img_name = lines[i][1][left_idx+1:right_idx]
+                    img_name = img_name.split('.')[0]
+                    if img_name in img_dot_name_dict.keys():
+                        img_name = img_dot_name_dict[img_name]
+                    if img_name[:-1] in img_dot_name_dict.keys():
+                        img_name = img_dot_name_dict[img_name[:-1]]
                     try:
                         sentence['img_id'] = img2id[img_name]
                     except:
@@ -120,8 +135,9 @@ def data2json(lines, img2id):
                 dialogue_content.append(sentence) 
             data[dialogue_id] = dialogue_content
         i += 1
+    # 删除字符间的空格 
     data = delete_space(data)
-    print(data['dialogue 1'])
+    # print(data['dialogue 1'])
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
     
@@ -151,20 +167,32 @@ def image_process(path, model, img2id_dict):
 
 
 
+# 为了避免后缀出错做出修正 
+def img_dot_name_create(img2id_dict):
+    img_dot_name_dict = {}
+    for key in img2id_dict.keys():
+        dot_name = key.split('.')[0]
+        img_dot_name_dict[dot_name] = key
+        img_dot_name_dict[dot_name[:-1]] = key
+    # print(img_dot_name_dict) 
+    return img_dot_name_dict 
+
+
 if __name__ == "__main__":
 
-    '''
+    
     # excel 文字处理
     data_path = os.getcwd()
-    excel_path = os.path.join(data_path, 'dialogue.xlsx')
+    excel_path = os.path.join(data_path, 'dialogue11000_13000完成.xlsx')
     img2id_dict = img2id(data_path)
-    
+    img_dot_name_dict = img_dot_name_create(img2id_dict)
+
+
     lines = excel_read(excel_path)
-    lines = format_modify(lines, img2id_dict)
-    data2json(lines, img2id_dict)
+    lines = format_modify(lines, img2id_dict, img_dot_name_dict)
+    #data2json(lines, img2id_dict, img_dot_name_dict)
+    
     '''
-
-
     # 表情特征处理
     ckpt_path = 'ckpt/classifier_ckpt/model.bin'
     model = EfficientNet.from_pretrained('efficientnet-b0')
@@ -172,3 +200,4 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt['model']) 
     # print(model)
     image_process(data_path, model, img2id_dict)
+    '''
