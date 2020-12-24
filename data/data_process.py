@@ -142,9 +142,9 @@ def data2json(lines, img2id, img_dot_name_dict, emotion_dict):
     # 删除字符间的空格 
     data = delete_space(data)
     # print(data['dialogue 1'])
-    with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4)
-    
+    # with open('data.json', 'w', encoding='utf-8') as f:
+    #    json.dump(data, f, indent=4)
+    return data 
 
 
 # 对每张表情提取特征，存入json
@@ -218,7 +218,9 @@ if __name__ == "__main__":
     emotion_dict = emotion_label_calculate(lines) 
     print(emotion_dict)
     lines = format_modify(lines, img2id_dict, img_dot_name_dict)
-    data2json(lines, img2id_dict, img_dot_name_dict, emotion_dict)
+    data = data2json(lines, img2id_dict, img_dot_name_dict, emotion_dict)
+    with open('data.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4)
     
     '''
     # 表情特征处理

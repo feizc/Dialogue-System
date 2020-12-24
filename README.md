@@ -24,3 +24,10 @@
 
 2. Emotion analysis 
 
+
+### Dataset split 
+
+Here, we provide two version for our dataset: easy and difficult, to evaluate the performance of visual expression incoprporated dialogue system comprehensively. 
+
+
+
