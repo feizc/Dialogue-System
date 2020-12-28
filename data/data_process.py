@@ -4,6 +4,7 @@ import json
 from efficientnet_pytorch import EfficientNet
 from PIL import Image 
 from collections import Counter 
+import torch 
 #import torchvision
 #import torchvision.transforms as transformers
 
@@ -156,7 +157,9 @@ def image_process(path, model, img2id_dict):
     image_list = os.listdir(image_path)
 
     id2feature = {}
-    for img_name in image_list:
+    for img_name in image_list: 
+        if 'DS_Store' in img_name:
+            continue 
         img_path = os.path.join(image_path, img_name)
         img = Image.open(img_path).convert('RGB')
         img = tsfm(img).unsqueeze(0)
@@ -193,41 +196,82 @@ def emotion_label_calculate(lines):
             emotion_list.append(line[2])
         emotion = line[2].strip()
         emotion_counter.update([emotion])
-    print(emotion_counter) 
+    # print(emotion_counter) 
+    '''
     emotion_dict = {}
     i = 0 
     for emotion in emotion_list:
         emotion_dict[emotion] = i 
         i += 1 
-    return emotion_dict 
+    '''
+    return emotion_counter  
+
+
+
+# 对话内容预处理
+def dialog_preprocess(data_path):
+    excel_path = os.path.join(data_path, 'dialog')
+    excel_name_list = os.listdir(excel_path)
+    
+    img2id_dict = img2id(data_path)
+    img_dot_name_dict = img_dot_name_create(img2id_dict) 
+
+    emotion_counter = Counter()
+    dialog = {}
+    for excel in excel_name_list:
+        t_excel_path = os.path.join(excel_path, excel)
+        try:
+            lines = excel_read(t_excel_path)
+        except:
+            print(t_excel_path)
+        emotion = emotion_label_calculate(lines) 
+        emotion_counter.update(emotion)
+    emotion_counter = emotion_counter.most_common(100)
+    emotion_dict = {} 
+    i = 0 
+    for emotion in emotion_counter: 
+        emotion_dict[emotion[0]] = i 
+        i += 1 
+    print(emotion_dict) 
+    
+    for excel in excel_name_list:
+        t_excel_path = os.path.join(excel_path, excel) 
+        try:
+            lines = excel_read(t_excel_path)
+        except:
+            print(t_excel_path)
+        lines = format_modify(lines, img2id_dict, img_dot_name_dict) 
+        data = data2json(lines, img2id_dict, img_dot_name_dict, emotion_dict) 
+        dialog.update(data) 
+    
+    with open('data.json', 'w', encoding='utf-8') as f:
+        json.dump(dialog, f, indent=4)
+
+    print(len(dialog.keys()))
+
+
 
 
 
 
 if __name__ == "__main__":
 
-    
+    '''
     # excel 文字处理
     data_path = os.getcwd()
-    excel_path = os.path.join(data_path, 'dialogue.xlsx')
-    img2id_dict = img2id(data_path)
-    img_dot_name_dict = img_dot_name_create(img2id_dict)
+    dialog_preprocess(data_path)
 
-
-    lines = excel_read(excel_path)
-    emotion_dict = emotion_label_calculate(lines) 
-    print(emotion_dict)
-    lines = format_modify(lines, img2id_dict, img_dot_name_dict)
-    data = data2json(lines, img2id_dict, img_dot_name_dict, emotion_dict)
-    with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4)
     
+
+
     '''
     # 表情特征处理
+    num_classes = 300 
     ckpt_path = 'ckpt/classifier_ckpt/model.bin'
-    model = EfficientNet.from_pretrained('efficientnet-b0')
+    model = EfficientNet.from_pretrained('efficientnet-b0', num_classes=num_classes)
     ckpt = torch.load(ckpt_path, map_location='cpu')
     model.load_state_dict(ckpt['model']) 
     # print(model)
-    image_process(data_path, model, img2id_dict)
-    '''
+    
+    #image_process(data_path, model, img2id_dict)
+    
