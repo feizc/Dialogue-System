@@ -1,8 +1,10 @@
 from transformers import * 
 import torch 
+import torch.nn.functional as F 
 import json 
 import copy 
 import numpy as np 
+
 
 from train import SPECIAL_TOKENS_DICT, SPECIAL_TOKENS
 from MMdialog import MMdialog 
@@ -35,6 +37,49 @@ def greedy_decode(input_embs, token_type_ids, model, tokenizer, max_len=20):
 # beam search 
 
 # top-k sampling 
+def sample_sequence(input_embs, token_type_ids, model, tokenizer, max_len=20): 
+    temperature = 0.7 
+    bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) 
+    res = []
+    for i in range(max_len):
+        logits = model.inference(input_embs, token_type_ids) 
+        logits = logits[-1] / temperature 
+        logits = top_filtering(logits, top_k=0, top_p=0.9)
+        probs = F.softmax(logits, dim=-1)
+        next_word = torch.multinomial(probs, 1).item()
+        if next_word == eos: 
+            break
+        res.append(next_word)
+        clone_id = token_type_ids[0].clone().view(-1)
+        token_type_ids = torch.cat((token_type_ids, clone_id), 0)
+        word_emb = model.transformer.wte(torch.LongTensor([next_word]))
+        input_embs = torch.cat((input_embs, word_emb), 0) 
+        break 
+    return res 
+
+
+# select top-k or top-p candidates
+def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_value=-float('Inf')): 
+    assert logits.dim()==1 
+    top_k = min(top_k, logits.size(-1)) 
+    if top_k > 0:
+        idxs_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+        logits[idxs_to_remove] = filter_value 
+    if top_p > 0:
+        sorted_logits, sorted_idx = torch.sort(logits, descending=True) 
+        cummulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1) 
+
+        sorted_idx_to_remove = cummulative_probs > top_p 
+        sorted_idx_to_remove[..., 1:] = sorted_idx_to_remove[...,:-1].clone()
+        sorted_idx_to_remove[...,0] = 0 
+
+        idxs_to_remove = sorted_idx[sorted_idx_to_remove]
+        logits[idxs_to_remove] = filter_value 
+    idxs_to_remove = logits < threshold 
+    logits[idxs_to_remove] = filter_value
+    # print(logits.size())
+    return logits
+
 
 
 # response generaton 
@@ -74,9 +119,10 @@ def generate_responce(model, dialog_list, id2feature, tokenizer):
             input_embs, img_features = input_embs.to(device), img_features.to(device)
             print(input_embs.size(), token_type_ids.size())
 
-            res = greedy_decode(input_embs, token_type_ids, model, tokenizer)
-            res = tokenizer.decode(res, skip_special_tokens=True)
-            print(res)
+            res = sample_sequence(input_embs, token_type_ids, model, tokenizer)
+            #res = greedy_decode(input_embs, token_type_ids, model, tokenizer)
+            #res = tokenizer.decode(res, skip_special_tokens=True)
+            #print(res)
             break
 
 

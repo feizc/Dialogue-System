@@ -63,6 +63,7 @@ def train():
 
     # 数据读取
     dialogs, id2feature = get_data(tokenizer, train_data_path, feature_path)
+    
     dataset = MMDataset(dialogs, id2feature, tokenizer)
 
 
