@@ -12,7 +12,8 @@ SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]'
 SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
 
 # Data parameters
-train_data_path = 'data/eval.json'
+train_data_path = 'data/eval.json' 
+val_data_path = 'data/eval.json'
 feature_path = 'data/id2feature.json'
 
 
@@ -50,14 +51,27 @@ def main():
     optimizer = AdamW(model.parameters(), lr=lr)
 
     # 数据读取
-    dialogs, id2feature = get_data(tokenizer, train_data_path, feature_path)    
-    dataset = MMDataset(dialogs, id2feature, tokenizer) 
-    
+    train_dialogs, id2feature = get_data(tokenizer, train_data_path, feature_path)    
+    val_dialogs, _ = get_data(tokenizer, val_data_path, feature_path)
+
+    train_dataset = MMDataset(train_dialogs, id2feature, tokenizer) 
+    val_dataset = MMDataset(val_dialogs, id2feature, tokenizer)
+
     # Epochs 
     for epoch in range(epochs):
 
         # one epoch's training 
-        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=dataset, epoch=epoch)
+        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_dataset, epoch=epoch)
+        
+        # one epoch's validation 
+        val_loss = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
+
+        # save checkpoint 
+        torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
+                    '%s/epoch_%d_loss_%.3f'%(model_path, epoch, val_loss))
+        model.config.to_json_file(os.path.join(model_path, 'config.json'))
+        tokenizer.save_vocabulary(model_path)
+
         break
 
 
@@ -91,10 +105,10 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         if iteration % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
-            avg_loss.update(loss.item() / gradient_accumulation_steps)
             
         acc = accuracy_compute(lm_logits, labels, 5)
         avg_acc.update(acc)
+        avg_loss.update(loss.item())
         
         # print status 
         if iteration % print_freq == 0:
@@ -105,19 +119,44 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         iteration += 1 
         break
 
-         
-        # print(loss.item())
-        # print('acc:', acc)
 
-        #torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
-        #            '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc.avg))
-        #model.config.to_json_file(os.path.join(model_path, 'config.json'))
-        #tokenizer.save_vocabulary(model_path)
-        #loss_list.append(avg_loss.avg)
-        #acc_list.append(avg_acc.avg)
-        
-    #print(loss_list)
-    #print(acc_list)
+
+
+
+def validate(model, tokenizer, dataset, epoch):
+    
+    model.eval()
+    avg_loss = AverageMeter()
+    avg_acc = AverageMeter() 
+    iteration = 1
+
+    with torch.no_grad():
+        for instance in dataset:
+            history_txt, history_img, token_type_ids, labels = instance 
+            if token_type_ids.size(0) > 500:
+                continue
+            history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
+            
+            history_txt_embs = model.transformer.wte(history_txt)
+            history_img_embs = model.image_off(history_img).squeeze(1)
+            input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
+            input_embs, img_features = input_embs.to(device), img_features.to(device)
+            lm_logits, loss = model(input_embs, token_type_ids, labels, img_features) 
+
+            acc = accuracy_compute(lm_logits, labels, 5)
+            avg_acc.update(acc)
+            avg_loss.update(loss.item())
+            
+            if iteration % print_freq == 0:
+                print('Validation:[{0}][{1}/{2}]\t'
+                'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                'Acc {acc.val:.3f} ({acc.avg:.3f})'.format(epoch, iteration, len(dataset),loss=avg_loss, acc=avg_acc))
+  
+            iteration += 1
+            print(lm_logits.size())
+            break
+    return avg_loss.avg 
+
 
 
 # 将输入拼接成符合要求的tensor
