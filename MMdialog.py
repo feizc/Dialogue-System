@@ -58,5 +58,5 @@ class MMdialog(GPT2PreTrainedModel):
             loss_img = img_loss_fct(img_regs, image_feature)
             loss += loss_img
 
-        return lm_logits, loss 
+        return lm_logits, loss, img_hidden_states  
 

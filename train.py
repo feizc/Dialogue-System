@@ -5,7 +5,9 @@ from MMdialog import MMdialog
 from dataset import MMDataset, build_input_from_segments, get_data
 import torch 
 from utils import accuracy_compute, AverageMeter 
-from nltk.translate.bleu_score import corpus_bleu 
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction  
+import numpy as np 
+
 
 
 SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]', '[PAD]']
@@ -67,17 +69,18 @@ def main():
         val_loss = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
 
         # save checkpoint 
+        '''
         torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
                     '%s/epoch_%d_loss_%.3f'%(model_path, epoch, val_loss))
         model.config.to_json_file(os.path.join(model_path, 'config.json'))
         tokenizer.save_vocabulary(model_path)
-
+        '''
         break
 
 
 
 
-
+# training process implementation 
 def train(model, tokenizer, optimizer, dataset, epoch):
 
     # 模型的训练
@@ -97,7 +100,7 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         history_img_embs = model.image_off(history_img).squeeze(1)
         input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
         input_embs, img_features = input_embs.to(device), img_features.to(device)
-        lm_logits, loss = model(input_embs, token_type_ids, labels, img_features)
+        lm_logits, loss, _ = model(input_embs, token_type_ids, labels, img_features)
         
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -120,14 +123,13 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         break
 
 
-
-
-
+# one epoch for validation 
 def validate(model, tokenizer, dataset, epoch):
     
     model.eval()
     avg_loss = AverageMeter()
     avg_acc = AverageMeter() 
+    avg_bleu = AverageMeter()
     iteration = 1
 
     with torch.no_grad():
@@ -141,7 +143,7 @@ def validate(model, tokenizer, dataset, epoch):
             history_img_embs = model.image_off(history_img).squeeze(1)
             input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
             input_embs, img_features = input_embs.to(device), img_features.to(device)
-            lm_logits, loss = model(input_embs, token_type_ids, labels, img_features) 
+            lm_logits, loss, img_hidden = model(input_embs, token_type_ids, labels, img_features) 
 
             acc = accuracy_compute(lm_logits, labels, 5)
             avg_acc.update(acc)
@@ -153,10 +155,29 @@ def validate(model, tokenizer, dataset, epoch):
                 'Acc {acc.val:.3f} ({acc.avg:.3f})'.format(epoch, iteration, len(dataset),loss=avg_loss, acc=avg_acc))
   
             iteration += 1
-            print(lm_logits.size())
+            # print(lm_logits.size()) 
+            logits = lm_logits.cpu().data.numpy()
+            #logits = np.argsort(logits)
+            hypothesis = np.argmax(logits, axis=1)
+            labels = labels.cpu().data.numpy().tolist()
+            bleu_score = bleu_compute(labels, hypothesis.tolist())
+            avg_bleu.update(bleu_score)
             break
+    print('Validation Sumary: Loss {loss.avg:.4f}, Acc {acc.avg:.3f}, BLEU {bleu.avg:.4f}'.format(loss=avg_loss, acc=avg_acc, bleu=avg_bleu))
+
     return avg_loss.avg 
 
+
+def bleu_compute(reference, hypothesis):
+    idx = 0
+    while idx < len(reference) and reference[idx] == -100:
+        idx += 1 
+    ref = ''
+    hyp = ''
+    for i in range(idx, len(reference)):
+        ref += str(reference[i]) + ' '
+        hyp += str(hypothesis[i]) + ' '
+    return corpus_bleu([[ref]], [hyp], smoothing_function=SmoothingFunction().method1)
 
 
 # 将输入拼接成符合要求的tensor

@@ -22,7 +22,7 @@ def greedy_decode(input_embs, token_type_ids, model, tokenizer, max_len=20):
     for i in range(max_len):
         logits = model.inference(input_embs, token_type_ids) # (input_length, vocab_size)
         logits = logits.cpu().data.numpy()
-        next_word = np.argsort(logits[-1])[-1]
+        next_word = np.argmax(logits[-1])
         if next_word == eos:
             break
         res.append(next_word)
