@@ -4,116 +4,120 @@ import sys
 from MMdialog import MMdialog 
 from dataset import MMDataset, build_input_from_segments, get_data
 import torch 
+from utils import accuracy_compute, AverageMeter 
+from nltk.translate.bleu_score import corpus_bleu 
+
 
 SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]', '[PAD]']
 SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
 
-
-train_data_path = 'data/data.json'
+# Data parameters
+train_data_path = 'data/eval.json'
 feature_path = 'data/id2feature.json'
+
+
+# model parameters
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
-
 epochs = 20
 lr = 6.5e-5 
 model_path = 'ckpt/mmgpt'
 gradient_accumulation_steps = 5 
+checkpoint_usage = True
+print_freq = 1
 
 
+# training and validation 
+def main():
 
-def accuracy_compute(lm_logits, targets, k):
-    _, idx = torch.topk(lm_logits, k, 1)
-    correct = idx.eq(targets.view(-1,1).expand_as(idx))
-    #print(correct)
-    correct_total = correct.view(-1).float().sum().item()
-    nums = targets.view(-1).detach().cpu().numpy()
-    length = 0
-    for num in nums:
-        if num != -100:
-            length += 1
-    return correct_total / float(length)
+    # 模型初始化 
+    if checkpoint_usage == True: 
+        ckpt_path = 'ckpt/mmgpt/model.bin'
+        tokenizer = BertTokenizer.from_pretrained('ckpt/mmgpt', do_lower_case=True)
+        tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
+        model_config = GPT2Config.from_pretrained('ckpt/mmgpt')
 
-
-class AverageMeter(object):
-    def __init__(self):
-        self.reset()
+        model = MMdialog(model_config)
+        ckpt = torch.load(ckpt_path, map_location='cpu')
+        model.load_state_dict(ckpt['model']) 
     
-    def reset(self):
-        self.val = 0.0
-        self.avg = 0.0
-        self.sum = 0.0
-        self.count = 0
-    
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def train():
-    
-    # 模型初始化
-    tokenizer = BertTokenizer.from_pretrained('ckpt/cdial-gpt', do_lower_case=True)
-    model = MMdialog.from_pretrained('ckpt/cdial-gpt')
-    tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
-    model.resize_token_embeddings(len(tokenizer))
+    else:
+        tokenizer = BertTokenizer.from_pretrained('ckpt/cdial-gpt', do_lower_case=True)
+        model = MMdialog.from_pretrained('ckpt/cdial-gpt')
+        tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
+        model.resize_token_embeddings(len(tokenizer))
     model = model.to(device)
     optimizer = AdamW(model.parameters(), lr=lr)
 
     # 数据读取
-    dialogs, id2feature = get_data(tokenizer, train_data_path, feature_path)
+    dialogs, id2feature = get_data(tokenizer, train_data_path, feature_path)    
+    dataset = MMDataset(dialogs, id2feature, tokenizer) 
     
-    dataset = MMDataset(dialogs, id2feature, tokenizer)
+    # Epochs 
+    for epoch in range(epochs):
 
+        # one epoch's training 
+        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=dataset, epoch=epoch)
+        break
+
+
+
+
+
+def train(model, tokenizer, optimizer, dataset, epoch):
 
     # 模型的训练
     model.train()
-    loss_list = []
-    acc_list = []
-    for epoch in range(epochs):
-        avg_loss = AverageMeter()
-        avg_acc = AverageMeter()
-        iteration = 1
-        for instance in dataset: 
-            history_txt, history_img, token_type_ids, labels = instance 
-            if token_type_ids.size(0) > 500:
-                continue
-            history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
-            #print(token_type_ids)
-            #print(labels)
 
-            # print(history_txt.size())
-            history_txt_embs = model.transformer.wte(history_txt)
-            history_img_embs = model.image_off(history_img).squeeze(1)
-            input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
-            input_embs, img_features = input_embs.to(device), img_features.to(device)
-            lm_logits, loss = model(input_embs, token_type_ids, labels, img_features)
+    avg_loss = AverageMeter()
+    avg_acc = AverageMeter()
+    iteration = 1
+
+    for instance in dataset: 
+        history_txt, history_img, token_type_ids, labels = instance 
+        if token_type_ids.size(0) > 500:
+            continue
+        history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
+            
+        history_txt_embs = model.transformer.wte(history_txt)
+        history_img_embs = model.image_off(history_img).squeeze(1)
+        input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
+        input_embs, img_features = input_embs.to(device), img_features.to(device)
+        lm_logits, loss = model(input_embs, token_type_ids, labels, img_features)
         
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-            if iteration % gradient_accumulation_steps == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-                avg_loss.update(loss.item() / gradient_accumulation_steps)
-                break
-            acc = accuracy_compute(lm_logits, labels, 5)
-            avg_acc.update(acc)
-            iteration += 1
-            # print(loss.item())
-            print('acc:', acc)
-
-        torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
-                    '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc.avg))
-        model.config.to_json_file(os.path.join(model_path, 'config.json'))
-        tokenizer.save_vocabulary(model_path)
-        loss_list.append(avg_loss.avg)
-        acc_list.append(avg_acc.avg)
+        if iteration % gradient_accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+            avg_loss.update(loss.item() / gradient_accumulation_steps)
+            
+        acc = accuracy_compute(lm_logits, labels, 5)
+        avg_acc.update(acc)
+        
+        # print status 
+        if iteration % print_freq == 0:
+            print('Epoch:[{0}][{1}/{2}]\t'
+            'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+            'Acc {acc.val:.3f} ({acc.avg:.3f})'.format(epoch, iteration, len(dataset),loss=avg_loss, acc=avg_acc))
+        
+        iteration += 1 
         break
+
+         
+        # print(loss.item())
+        # print('acc:', acc)
+
+        #torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
+        #            '%s/epoch_%d_acc_%.3f'%(model_path, epoch, avg_acc.avg))
+        #model.config.to_json_file(os.path.join(model_path, 'config.json'))
+        #tokenizer.save_vocabulary(model_path)
+        #loss_list.append(avg_loss.avg)
+        #acc_list.append(avg_acc.avg)
         
-    print(loss_list)
-    print(acc_list)
+    #print(loss_list)
+    #print(acc_list)
 
 
 # 将输入拼接成符合要求的tensor
@@ -154,7 +158,7 @@ def input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenize
 
 if __name__ == "__main__":
     
-    train()
+    main()
 
 
     '''

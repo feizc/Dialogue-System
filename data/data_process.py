@@ -5,8 +5,8 @@ from efficientnet_pytorch import EfficientNet
 from PIL import Image 
 from collections import Counter 
 import torch 
-#import torchvision
-#import torchvision.transforms as transformers
+import torchvision
+import torchvision.transforms as transformers
 
 SPEAKER = ['[speaker1]', '[speaker2]']
 
@@ -265,6 +265,12 @@ if __name__ == "__main__":
 
 
     '''
+    num_classes = 300 
+    data_path = os.getcwd()
+    img2id_dict = img2id(data_path)
+    model = EfficientNet.from_pretrained('efficientnet-b0', num_classes=num_classes) 
+
+    '''
     # 表情特征处理
     num_classes = 300 
     ckpt_path = 'ckpt/classifier_ckpt/model.bin'
@@ -273,5 +279,5 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt['model']) 
     # print(model)
     
-    #image_process(data_path, model, img2id_dict)
-    
+    image_process(data_path, model, img2id_dict)
+    '''
