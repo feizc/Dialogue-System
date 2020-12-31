@@ -7,6 +7,7 @@ import torch
 from utils import accuracy_compute, AverageMeter 
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction  
 import numpy as np 
+import json 
 
 
 
@@ -79,7 +80,6 @@ def main():
 
 
 
-
 # training process implementation 
 def train(model, tokenizer, optimizer, dataset, epoch):
 
@@ -123,6 +123,7 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         break
 
 
+
 # one epoch for validation 
 def validate(model, tokenizer, dataset, epoch):
     
@@ -130,7 +131,11 @@ def validate(model, tokenizer, dataset, epoch):
     avg_loss = AverageMeter()
     avg_acc = AverageMeter() 
     avg_bleu = AverageMeter()
-    iteration = 1
+    img_correct = 0 
+    img_total = 0
+    iteration = 1 
+
+    img_hidden_bank, id2feature = img_hidden_generate(model)
 
     with torch.no_grad():
         for instance in dataset:
@@ -145,6 +150,11 @@ def validate(model, tokenizer, dataset, epoch):
             input_embs, img_features = input_embs.to(device), img_features.to(device)
             lm_logits, loss, img_hidden = model(input_embs, token_type_ids, labels, img_features) 
 
+            img_id = img_id_find(id2feature, history_img[-1,:]) 
+            if img_id != -1: 
+                img_total += 1 
+                if img_similarity_compute(img_hidden_bank, img_hidden, img_id):
+                    img_correct += 1
             acc = accuracy_compute(lm_logits, labels, 5)
             avg_acc.update(acc)
             avg_loss.update(loss.item())
@@ -163,11 +173,14 @@ def validate(model, tokenizer, dataset, epoch):
             bleu_score = bleu_compute(labels, hypothesis.tolist())
             avg_bleu.update(bleu_score)
             break
-    print('Validation Sumary: Loss {loss.avg:.4f}, Acc {acc.avg:.3f}, BLEU {bleu.avg:.4f}'.format(loss=avg_loss, acc=avg_acc, bleu=avg_bleu))
+    img_acc = float(img_correct / img_total)  
+    print('Validation Summary: Total loss {loss.avg:.4f} \nText: acc {acc.avg:.3f}, BLEU {bleu.avg:.4f}'.format(loss=avg_loss, acc=avg_acc, bleu=avg_bleu))
+    print('Image: acc {acc:.3f}'.format(acc=img_acc))
 
     return avg_loss.avg 
 
 
+# calculate bleu score 
 def bleu_compute(reference, hypothesis):
     idx = 0
     while idx < len(reference) and reference[idx] == -100:
@@ -178,6 +191,43 @@ def bleu_compute(reference, hypothesis):
         ref += str(reference[i]) + ' '
         hyp += str(hypothesis[i]) + ' '
     return corpus_bleu([[ref]], [hyp], smoothing_function=SmoothingFunction().method1)
+
+
+# img feature to hidden states for similarity computation 
+def img_hidden_generate(model):
+    with open('data/id2feature.json', 'r', encoding='utf-8') as f:
+        id2feature = json.load(f)
+    img_features = []
+    for id in id2feature.keys():
+        img_features.append(id2feature[id][0])
+    img_features = np.array(img_features)
+    img_features = torch.from_numpy(img_features).float() 
+    img_hidden_bank = model.image_off(img_features)
+    img_hidden_bank_norm = torch.norm(img_hidden_bank, dim=1).unsqueeze(1)
+    img_hidden_bank = img_hidden_bank / img_hidden_bank_norm
+    return img_hidden_bank, id2feature   
+
+
+# calculate img hidden simlarity 
+def img_similarity_compute(img_hidden_bank, img_hidden, img_id): 
+    similarity = torch.sum(img_hidden*img_hidden_bank, dim=1)
+    _, idxs = torch.topk(similarity, 5)
+    idxs = idxs.tolist()
+    if img_id in idxs:
+        return True
+    return False
+    # print(similarity.size())
+
+
+# find the correct img_id 
+def img_id_find(id2feature, img_features):
+    img_features = img_features.tolist()[0]
+    correct_id = 0 
+    for id in id2feature.keys():
+        if id2feature[id][0][0] == img_features[0]:
+            return correct_id
+        correct_id += 1
+    return -1 
 
 
 # 将输入拼接成符合要求的tensor
