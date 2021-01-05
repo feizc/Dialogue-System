@@ -70,13 +70,12 @@ def main():
         val_loss = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
 
         # save checkpoint 
-        '''
+        
         torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
                     '%s/epoch_%d_loss_%.3f'%(model_path, epoch, val_loss))
         model.config.to_json_file(os.path.join(model_path, 'config.json'))
         tokenizer.save_vocabulary(model_path)
-        '''
-        break
+        
 
 
 
