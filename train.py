@@ -15,7 +15,7 @@ SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]'
 SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
 
 # Data parameters
-train_data_path = 'data/test.json' 
+train_data_path = 'data/data.json' 
 val_data_path = 'data/test.json'
 feature_path = 'data/id2feature.json'
 
