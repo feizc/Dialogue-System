@@ -15,20 +15,22 @@ SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]'
 SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
 
 # Data parameters
-train_data_path = 'data/eval.json' 
-val_data_path = 'data/eval.json'
+train_data_path = 'data/test.json' 
+val_data_path = 'data/test.json'
 feature_path = 'data/id2feature.json'
 
 
 # model parameters
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
-epochs = 20
+epochs = 100
 lr = 6.5e-5 
 model_path = 'ckpt/mmgpt'
 gradient_accumulation_steps = 5 
 checkpoint_usage = True
-print_freq = 1
+print_freq = 1 
+patience = 0 
+best_loss = 1000
 
 
 # training and validation 
@@ -62,12 +64,22 @@ def main():
 
     # Epochs 
     for epoch in range(epochs):
-
-        # one epoch's training 
-        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_dataset, epoch=epoch)
         
         # one epoch's validation 
-        val_loss = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
+        val_loss, val_bleu, val_acc = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
+
+        break
+        # one epoch's training 
+        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_dataset, epoch=epoch)
+
+        # prepare for next epoch 
+        # best = False 
+        if val_loss < best_loss:
+            best_loss = val_loss 
+            patience = 0
+            # best = True 
+        else:
+            patience += 1
 
         # save checkpoint 
         
@@ -75,7 +87,10 @@ def main():
                     '%s/epoch_%d_loss_%.3f'%(model_path, epoch, val_loss))
         model.config.to_json_file(os.path.join(model_path, 'config.json'))
         tokenizer.save_vocabulary(model_path)
-        
+
+        if patience == 5: 
+            break 
+
 
 
 
@@ -119,7 +134,7 @@ def train(model, tokenizer, optimizer, dataset, epoch):
             'Acc {acc.val:.3f} ({acc.avg:.3f})'.format(epoch, iteration, len(dataset),loss=avg_loss, acc=avg_acc))
         
         iteration += 1 
-        break
+        # break
 
 
 
@@ -171,12 +186,12 @@ def validate(model, tokenizer, dataset, epoch):
             labels = labels.cpu().data.numpy().tolist()
             bleu_score = bleu_compute(labels, hypothesis.tolist())
             avg_bleu.update(bleu_score)
-            break
+            # break
     img_acc = float(img_correct / img_total)  
     print('Validation Summary: Total loss {loss.avg:.4f} \nText: acc {acc.avg:.3f}, BLEU {bleu.avg:.4f}'.format(loss=avg_loss, acc=avg_acc, bleu=avg_bleu))
     print('Image: acc {acc:.3f}'.format(acc=img_acc))
 
-    return avg_loss.avg 
+    return avg_loss.avg, avg_bleu.avg, avg_acc.avg 
 
 
 # calculate bleu score 
@@ -200,7 +215,7 @@ def img_hidden_generate(model):
     for id in id2feature.keys():
         img_features.append(id2feature[id][0])
     img_features = np.array(img_features)
-    img_features = torch.from_numpy(img_features).float() 
+    img_features = torch.from_numpy(img_features).float().to(device) 
     img_hidden_bank = model.image_off(img_features)
     img_hidden_bank_norm = torch.norm(img_hidden_bank, dim=1).unsqueeze(1)
     img_hidden_bank = img_hidden_bank / img_hidden_bank_norm
