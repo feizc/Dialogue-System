@@ -1,22 +1,32 @@
 from transformers import * 
 import os
-import sys
+import sys 
+import random 
 from MMdialog import MMdialog 
 from dataset import MMDataset, build_input_from_segments, get_data
-import torch 
+import torch
+# from torch.nn.parallel import DistributedDataParallel 
+from torch.utils.data import DataLoader 
+
 from utils import accuracy_compute, AverageMeter 
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction  
 import numpy as np 
 import json 
+from argparse import ArgumentParser 
+import torch.distributed as dist 
 
+from tqdm import tqdm 
+from apex import amp 
+from apex.parallel import convert_syncbn_model 
+from apex.parallel import DistributedDataParallel 
 
 
 SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]', '[PAD]']
 SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
 
 # Data parameters
-train_data_path = 'data/eval.json' 
-val_data_path = 'data/eval.json'
+train_data_path = 'data/test.json' 
+val_data_path = 'data/test.json'
 feature_path = 'data/id2feature.json'
 
 
@@ -34,26 +44,54 @@ best_loss = 1000
 
 
 # training and validation 
-def main():
+def main(): 
+    parser = ArgumentParser()
+    parser.add_argument("--local_rank", type=int, default=0, help="-1 if not distributed") 
+    parser.add_argument("--fp16", type=int, default=1, help='O0,O1,O2, or O3')
+    args = parser.parse_args()
 
+    random.seed(0)
+    torch.manual_seed(0)
+    np.random.seed(0) 
+    
+    if args.local_rank != -1:
+        dist.init_process_group(backend='nccl', init_method='env://')
+        torch.cuda.set_device(args.local_rank)
+    
+
+    map_location = "cuda:" + str(args.local_rank)
     # 模型初始化 
     if checkpoint_usage == True: 
-        ckpt_path = 'ckpt/mmgpt/model.bin'
+        
         tokenizer = BertTokenizer.from_pretrained('ckpt/mmgpt', do_lower_case=True)
         tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
         model_config = GPT2Config.from_pretrained('ckpt/mmgpt')
-
         model = MMdialog(model_config)
-        ckpt = torch.load(ckpt_path, map_location='cpu')
-        model.load_state_dict(ckpt['model']) 
     
     else:
         tokenizer = BertTokenizer.from_pretrained('ckpt/cdial-gpt', do_lower_case=True)
         model = MMdialog.from_pretrained('ckpt/cdial-gpt')
         tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
         model.resize_token_embeddings(len(tokenizer))
+    
+    if args.fp16:
+        model = convert_syncbn_model(model)
+
     model = model.to(device)
-    optimizer = AdamW(model.parameters(), lr=lr)
+    optimizer = AdamW(model.parameters(), lr=lr) 
+
+    if args.fp16:
+        model, optimizer = amp.initialize(model, optimizer, opt_level='O1')
+
+    if args.local_rank != -1:
+        if args.fp16:
+            model = DistributedDataParallel(model, delay_allreduce=True)
+        else:
+            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True)
+    if checkpoint_usage == True: 
+        ckpt_path = 'ckpt/mmgpt/model.bin'
+        ckpt = torch.load(ckpt_path, map_location=map_location)
+        model.module.load_state_dict(ckpt['model'])
 
     # 数据读取
     train_dialogs, id2feature = get_data(tokenizer, train_data_path, feature_path)    
@@ -61,18 +99,23 @@ def main():
 
     train_dataset = MMDataset(train_dialogs, id2feature, tokenizer) 
     val_dataset = MMDataset(val_dialogs, id2feature, tokenizer)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    val_sampler = torch.utils.data.sampler.SequentialSampler(val_dataset)
 
+    train_loader = DataLoader(train_dataset, batch_size=1, num_workers=8, sampler=train_sampler)
+    val_loader = DataLoader(val_dataset, batch_size=1, num_workers=8, sampler=val_sampler)
+    
     # Epochs 
     for epoch in range(epochs):
         
         
         # one epoch's training 
-        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_dataset, epoch=epoch)
+        train(args=args, model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_loader, epoch=epoch)
 
         # one epoch's validation 
-        val_loss, val_bleu, val_acc = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
-
-        break 
+        val_loss, _, _ = validate(model=model, tokenizer=tokenizer, dataset=val_loader, epoch=epoch) 
+        # break
+        
         # prepare for next epoch 
         # best = False 
         if val_loss < best_loss:
@@ -83,11 +126,11 @@ def main():
             patience += 1
 
         # save checkpoint 
-        
-        torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
-                    '%s/epoch_%d_loss_%.3f'%(model_path, epoch, val_loss))
-        model.config.to_json_file(os.path.join(model_path, 'config.json'))
-        tokenizer.save_vocabulary(model_path)
+        if args.local_rank == 0:
+            torch.save({'model':model.module.state_dict(), 'optimizer': optimizer.state_dict()},\
+                        '%s/epoch_%d_loss_%.3f'%(model_path, epoch, val_loss))
+            model.module.config.to_json_file(os.path.join(model_path, 'config.json'))
+            tokenizer.save_vocabulary(model_path)
 
         if patience == 5: 
             break 
@@ -96,7 +139,7 @@ def main():
 
 
 # training process implementation 
-def train(model, tokenizer, optimizer, dataset, epoch):
+def train(args, model, tokenizer, optimizer, dataset, epoch):
 
     # 模型的训练
     model.train()
@@ -109,18 +152,28 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         history_txt, history_img, token_type_ids, labels = instance 
         if token_type_ids.size(0) > 500:
             continue
-        history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
-            
-        history_txt_embs = model.transformer.wte(history_txt)
-        history_img_embs = model.image_off(history_img).squeeze(1)
+        history_txt, history_img, token_type_ids, labels  = history_txt.to(device).squeeze(0), history_img.to(device).squeeze(0),\
+                                                            token_type_ids.to(device).squeeze(0), labels.to(device).squeeze(0)
+        # print(history_txt.size(), history_img.size(), token_type_ids.size())
+        
+        history_txt_embs = model.module.transformer.wte(history_txt)
+        history_img_embs = model.module.image_off(history_img).squeeze(1)
         input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
         input_embs, img_features = input_embs.to(device), img_features.to(device)
         lm_logits, loss, _ = model(input_embs, token_type_ids, labels, img_features)
         
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        if args.fp16:
+            with amp.scale_loss(loss, optimizer) as scale_loss:
+                scale_loss.backward()
+        else:
+            loss.backward()
+        
 
         if iteration % gradient_accumulation_steps == 0:
+            if args.fp16:
+                torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), 1.0)
+            else:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
             optimizer.step()
             optimizer.zero_grad()
             
@@ -157,10 +210,10 @@ def validate(model, tokenizer, dataset, epoch):
             history_txt, history_img, token_type_ids, labels = instance 
             if token_type_ids.size(0) > 500:
                 continue
-            history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
-            
-            history_txt_embs = model.transformer.wte(history_txt)
-            history_img_embs = model.image_off(history_img).squeeze(1)
+            history_txt, history_img, token_type_ids, labels  = history_txt.to(device).squeeze(0), history_img.to(device).squeeze(0),\
+                                                                token_type_ids.to(device).squeeze(0), labels.to(device).squeeze(0)
+            history_txt_embs = model.module.transformer.wte(history_txt)
+            history_img_embs = model.module.image_off(history_img).squeeze(1)
             input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
             input_embs, img_features = input_embs.to(device), img_features.to(device)
             lm_logits, loss, img_hidden = model(input_embs, token_type_ids, labels, img_features) 
@@ -217,7 +270,7 @@ def img_hidden_generate(model):
         img_features.append(id2feature[id][0])
     img_features = np.array(img_features)
     img_features = torch.from_numpy(img_features).float().to(device) 
-    img_hidden_bank = model.image_off(img_features)
+    img_hidden_bank = model.module.image_off(img_features)
     img_hidden_bank_norm = torch.norm(img_hidden_bank, dim=1).unsqueeze(1)
     img_hidden_bank = img_hidden_bank / img_hidden_bank_norm
     return img_hidden_bank, id2feature   
