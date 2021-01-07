@@ -30,7 +30,7 @@ gradient_accumulation_steps = 5
 checkpoint_usage = True
 print_freq = 1 
 patience = 0 
-best_loss = 1000
+
 
 
 # training and validation 
@@ -63,12 +63,13 @@ def main():
     val_dataset = MMDataset(val_dialogs, id2feature, tokenizer)
 
     # Epochs 
+    best_loss = 1000.0 
     for epoch in range(epochs):
         
         # one epoch's validation 
         val_loss, val_bleu, val_acc = validate(model=model, tokenizer=tokenizer, dataset=val_dataset, epoch=epoch) 
 
-        break
+        # break
         # one epoch's training 
         train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_dataset, epoch=epoch)
 

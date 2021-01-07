@@ -150,7 +150,7 @@ def train(args, model, tokenizer, optimizer, dataset, epoch):
 
     for instance in dataset: 
         history_txt, history_img, token_type_ids, labels = instance 
-        if token_type_ids.size(0) > 500:
+        if token_type_ids.size(0) > 450:
             continue
         history_txt, history_img, token_type_ids, labels  = history_txt.to(device).squeeze(0), history_img.to(device).squeeze(0),\
                                                             token_type_ids.to(device).squeeze(0), labels.to(device).squeeze(0)
@@ -208,7 +208,7 @@ def validate(model, tokenizer, dataset, epoch):
     with torch.no_grad():
         for instance in dataset:
             history_txt, history_img, token_type_ids, labels = instance 
-            if token_type_ids.size(0) > 500:
+            if token_type_ids.size(0) > 450:
                 continue
             history_txt, history_img, token_type_ids, labels  = history_txt.to(device).squeeze(0), history_img.to(device).squeeze(0),\
                                                                 token_type_ids.to(device).squeeze(0), labels.to(device).squeeze(0)
