@@ -185,6 +185,7 @@ def img_dot_name_create(img2id_dict):
     return img_dot_name_dict 
 
 
+
 # 统计情感相关的标签, 这里可能需要限制情感种类 
 def emotion_label_calculate(lines):
     emotion_list = []
@@ -250,33 +251,63 @@ def dialog_preprocess(data_path):
     print(len(dialog.keys()))
 
 
-
+# label prediction 
+def label_process(data_path):
+    data_path = os.path.join(data_path, 'data.json')
+    with open(data_path, 'r', encoding='utf-8') as f:
+        data_dict = json.load(f) 
+    
+    res_list = []
+    for dia_id in data_dict.keys():
+        # print(data_dict[dia_id]) 
+        txt_list = []
+        for utterance in data_dict[dia_id]:
+            if 'txt' in utterance.keys():
+                txt_list.append(utterance['txt'])
+            if 'img_id' in utterance.keys():
+                history = txt_list[-4:]
+                if len(history) == 4 and len(history[0]) + len(history[1]) + len(history[2]) + len(history[3]) < 450:
+                    dilog_pair = {}
+                    dilog_pair['history'] = history 
+                    dilog_pair['respond'] = int(utterance['img_id'])
+                    res_list.append(dilog_pair)
+        # break 
+    print(len(res_list))
+    with open('label_train.json', 'w', encoding='utf-8') as f:
+        json.dump(res_list[:100000], f, indent=4)
+    with open('label_valid.json', 'w', encoding='utf-8') as f:
+        json.dump(res_list[100000:], f, indent=4)
 
 
 
 if __name__ == "__main__":
 
+    data_path = os.getcwd()
+    label_process(data_path)
+
     '''
+    img2id_dict = img2id(data_path)
+    print(img2id_dict) 
+    img_npy(data_path, img2id_dict)
+    
     # excel 文字处理
     data_path = os.getcwd()
     dialog_preprocess(data_path)
 
-    
 
-
-    '''
     num_classes = 300 
     data_path = os.getcwd()
-    img2id_dict = img2id(data_path)
     model = EfficientNet.from_pretrained('efficientnet-b0', num_classes=num_classes) 
 
-    '''
+    
     # 表情特征处理
     num_classes = 300 
-    ckpt_path = 'ckpt/classifier_ckpt/model.bin'
+    img2id_dict = img2id(data_path)
+    ckpt_path = '../ckpt/classifier_ckpt/model.bin'
     model = EfficientNet.from_pretrained('efficientnet-b0', num_classes=num_classes)
-    ckpt = torch.load(ckpt_path, map_location='cpu')
-    model.load_state_dict(ckpt['model']) 
+    model.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
+    #ckpt = torch.load(ckpt_path, map_location='cpu')
+    #model.load_state_dict(ckpt['model']) 
     # print(model)
     
     image_process(data_path, model, img2id_dict)

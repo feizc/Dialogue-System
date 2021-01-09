@@ -50,8 +50,8 @@ def tokenize(obj, tokenizer):
     if isinstance(obj, str):
         return tokenizer.convert_tokens_to_ids(tokenizer.tokenize(obj))
     if isinstance(obj, dict):
-        return dict((n, tokenize(o)) for n,o in obj.items())
-    return list(tokenize(o) for i in obj)
+        return dict((n, tokenize(o, tokenizer)) for n,o in obj.items())
+    return list(tokenize(o, tokenizer) for o in obj)
 
 
 # 将训练集拆分成 history + answer 形式
@@ -112,6 +112,36 @@ class MMDataset(Dataset):
             return history_txt, history_img, token_type_ids, new_labels 
 
         return history_txt, history_img, token_type_ids, labels
+
+
+
+class LPDataset(Dataset): 
+    def __init__(self, path, tokenizer):
+        with open(path, 'r', encoding='utf-8') as f: 
+            self.data = json.load(f) 
+        self.tokenizer = tokenizer 
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, index):
+        his = self.data[index]['history']
+        respond = self.data[index]['respond'] 
+        his = tokenize(his, self.tokenizer) 
+        his_ids = concate_input(his, self.tokenizer) 
+        his_ids = torch.LongTensor(his_ids)
+        respond = torch.LongTensor([respond])
+        return his_ids, respond 
+
+
+def concate_input(history, tokenizer):
+    bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
+    his_ids = [bos] 
+    for sentence_id in history:
+        his_ids += sentence_id 
+    his_ids += [bos, tag]
+    return his_ids 
+
 
 
 # 将文字和图像分开拼接，toekn type记录位置
@@ -177,9 +207,9 @@ def build_input_from_segments(history, answer, tokenizer):
 
 
 
-'''
+
 # 需要转为Tensoer的拼接
-def build_input_from_segments(history, answer, tokenizer, word_embedding, image_embedding): 
+def build_inputs(history, answer, tokenizer, word_embedding, image_embedding): 
     bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
 
     inp_embs = [], token_type_ids = [], labels = []
@@ -242,15 +272,15 @@ def build_input_from_segments(history, answer, tokenizer, word_embedding, image_
     token_type_ids.append(img)
 
     return inp_embs, token_type_ids, labels, image_flag, target_feature
-'''
+
 
 
 
 if __name__ == "__main__":
-    
-    train_data = ExpressionDataset('./data/pretrain_data')
+    tokenizer = BertTokenizer.from_pretrained('./ckpt/cdial-gpt', do_lower_case=True) 
+    train_data = LPDataset('./data/label_train.json', tokenizer)
     img, label = train_data[0]
-    print(img.size(), label)
+    print(img, label)
     '''
 
     data_path = './data/data.json'

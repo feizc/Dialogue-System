@@ -7,6 +7,29 @@ from transformers import GPT2Model, GPT2PreTrainedModel
 
 emotion_num = 62 
 
+
+class LabelPredict(GPT2PreTrainedModel):
+    
+    def __init__(self, config):
+        super(LabelPredict, self).__init__(config)
+        self.transformer = GPT2Model(config)
+        self.label_classifier = nn.Linear(config.n_embd, 274)
+
+        self.init_weights() 
+
+    def forward(self, his, respond):
+        transformer_outputs = self.transformer(his)
+        hidden_states = transformer_outputs[0][:, -1, :] 
+        # print(hidden_states.size())
+        logits = self.label_classifier(hidden_states)
+        loss_fct = CrossEntropyLoss()
+        loss = loss_fct(logits, respond)
+        return loss, logits  
+
+
+
+
+
 class MMdialog(GPT2PreTrainedModel): 
     # mode: dialog / emotion
     def __init__(self, config):
