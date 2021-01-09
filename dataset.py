@@ -6,7 +6,7 @@ import json
 import numpy as np
 import torchvision.transforms as transforms
 from PIL import Image
-#import matplotlib.pyplot as plt  
+import matplotlib.pyplot as plt  
 from transformers import BertTokenizer 
 import copy
 
@@ -32,8 +32,9 @@ class ExpressionDataset(Dataset):
         current_image_path = os.path.join(self.image_path, self.image_name_list[i])
         tfms = transforms.Compose([transforms.Resize(224), transforms.ToTensor(), transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
         img = np.load(current_image_path, allow_pickle=True, encoding='bytes')
-        # plt.imshow(img)
-        # plt.show()
+        #print(img[0])
+        #plt.imshow(img)
+        #plt.show()
         img = tfms(Image.fromarray(img))
         label = self.img2label_dict[self.image_name_list[i][:-4]]
         label = np.array(int(label))
@@ -246,10 +247,10 @@ def build_input_from_segments(history, answer, tokenizer, word_embedding, image_
 
 
 if __name__ == "__main__":
-    '''
+    
     train_data = ExpressionDataset('./data/pretrain_data')
     img, label = train_data[0]
-    print(img, label)
+    print(img.size(), label)
     '''
 
     data_path = './data/data.json'
@@ -261,7 +262,7 @@ if __name__ == "__main__":
     dataset = MMDataset(dialogs, id2feature, tokenizer)
     dataset[0]
 
-    '''
+    
     for item in dataset:
         _, _, _, labels = item
         break

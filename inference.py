@@ -119,8 +119,8 @@ def generate_responce(model, dialog_list, id2feature, tokenizer):
             input_embs, img_features = input_embs.to(device), img_features.to(device)
             print(input_embs.size(), token_type_ids.size())
 
-            res = sample_sequence(input_embs, token_type_ids, model, tokenizer)
-            #res = greedy_decode(input_embs, token_type_ids, model, tokenizer)
+            # res = sample_sequence(input_embs, token_type_ids, model, tokenizer)
+            res = greedy_decode(input_embs, token_type_ids, model, tokenizer)
             #res = tokenizer.decode(res, skip_special_tokens=True)
             #print(res)
             break

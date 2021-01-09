@@ -114,7 +114,9 @@ def train(model, tokenizer, optimizer, dataset, epoch):
         history_txt_embs = model.transformer.wte(history_txt)
         history_img_embs = model.image_off(history_img).squeeze(1)
         input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
-        input_embs, img_features = input_embs.to(device), img_features.to(device)
+        input_embs, img_features = input_embs.to(device), img_features.to(device) 
+        if input_embs.size(0) > 450:
+            continue 
         lm_logits, loss, _ = model(input_embs, token_type_ids, labels, img_features)
         
         loss.backward()
@@ -155,14 +157,16 @@ def validate(model, tokenizer, dataset, epoch):
     with torch.no_grad():
         for instance in dataset:
             history_txt, history_img, token_type_ids, labels = instance 
-            if token_type_ids.size(0) > 500:
+            if token_type_ids.size(0) > 450:
                 continue
             history_txt, history_img, token_type_ids, labels  = history_txt.to(device), history_img.to(device), token_type_ids.to(device), labels.to(device)
             
             history_txt_embs = model.transformer.wte(history_txt)
             history_img_embs = model.image_off(history_img).squeeze(1)
             input_embs, img_features = input_construct(history_txt_embs, history_img_embs, token_type_ids, tokenizer)
-            input_embs, img_features = input_embs.to(device), img_features.to(device)
+            input_embs, img_features = input_embs.to(device), img_features.to(device) 
+            if input_embs.size(0) > 450:
+                continue 
             lm_logits, loss, img_hidden = model(input_embs, token_type_ids, labels, img_features) 
 
             img_id = img_id_find(id2feature, history_img[-1,:]) 
