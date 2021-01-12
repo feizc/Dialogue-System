@@ -99,9 +99,10 @@ def easy_split(data, reference):
             print(data[dialog_id])
     print(len(train_id))
 
-    #vaild_id = res_id[:4000]
-    #test_id = res_id[4000:8000]
-    #train_id = train_id + res_id[8000:]
+    vaild_id = res_id[:1000]
+    test_id = res_id[1000:2000]
+    train_id = train_id + res_id[2000:]
+    '''
     valid_id = []
     test_id = []
     for id in res_id:
@@ -112,7 +113,7 @@ def easy_split(data, reference):
             test_id.append(id) 
         else:
             train_id.append(id)
-
+    '''
 
     print('begin to split dataset!')
     for dialog_id in data.keys():

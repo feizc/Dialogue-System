@@ -115,6 +115,29 @@ class MMDataset(Dataset):
 
 
 
+class VEIDDataset(Dataset):
+    def __init__(self, data_path, tokenizer, id2feature):
+        with open(data_path, 'r', encoding='utf-8') as f:
+            self.data = json.load(f) 
+        self.tokenizer = tokenizer 
+        self.id2feature = id2feature 
+
+    def __len__(self):
+        return len(self.data) 
+
+    def __getitem__(self, index):
+        history = self.data[index]['history'] 
+        answer = self.data[index]['answer'] 
+        input_ids, target_ids, token_type_ids, feature = create_input_clip(history, answer, self.tokenizer, self.id2feature)
+        input_ids = torch.Tensor(input_ids).long() 
+        target_ids = torch.Tensor(target_ids).long()
+        token_type_ids = torch.Tensor(token_type_ids).long()
+        feature = torch.from_numpy(np.array(feature)).float()
+        return input_ids, target_ids, token_type_ids, feature 
+
+
+
+
 class LPDataset(Dataset): 
     def __init__(self, path, tokenizer):
         with open(path, 'r', encoding='utf-8') as f: 
@@ -134,12 +157,13 @@ class LPDataset(Dataset):
         return his_ids, respond 
 
 
+
 def concate_input(history, tokenizer):
     bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
     his_ids = [bos] 
     for sentence_id in history:
         his_ids += sentence_id 
-    his_ids += [bos, tag]
+    his_ids += [eos]
     return his_ids 
 
 
@@ -204,6 +228,31 @@ def build_input_from_segments(history, answer, tokenizer):
     
     return history_txt, history_img, token_type_ids, labels
 
+
+
+def  create_input_clip(history, answer, tokenizer, id2feature):
+    
+    bos, eos, speaker1, speaker2, img, tag = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1]) 
+    input_ids = []
+    token_type_ids = []
+    target_ids = [] 
+    for i in range(len(history)):
+        inp = [bos] + tokenize(history[i]['txt'], tokenizer) + [eos] 
+        t_sp = speaker1 if i%2 == 0 else speaker2  
+        inp = [t_sp] + inp
+        target = [-100] * len(inp)
+        token_type = [t_sp] * len(inp) 
+        input_ids += inp
+        target_ids += target
+        token_type_ids += token_type 
+    
+    t_sp = speaker1 if len(history)%2==0 else speaker2 
+    inp = [bos] + tokenize(answer['txt'], tokenizer) + [eos] 
+    input_ids += [t_sp] + inp + [tag]
+    target_ids += inp + [-100, -100]
+    token_type_ids += [-100]*(len(inp)+2) 
+    #print(len(input_ids), len(target_ids), len(token_type_ids))
+    return input_ids, target_ids, token_type_ids, id2feature[answer['img_id']]
 
 
 
@@ -277,10 +326,16 @@ def build_inputs(history, answer, tokenizer, word_embedding, image_embedding):
 
 
 if __name__ == "__main__":
+    data_path = 'data/small_valid.json'
     tokenizer = BertTokenizer.from_pretrained('./ckpt/cdial-gpt', do_lower_case=True) 
-    train_data = LPDataset('./data/label_train.json', tokenizer)
-    img, label = train_data[0]
-    print(img, label)
+    tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT) 
+    with open('data/id2feature_clip.json', 'r', encoding='utf-8') as f: 
+        id2feature = json.load(f)
+
+    train_data = VEIDDataset(data_path, tokenizer, id2feature)
+    input_ids, target_ids, token_type_ids, feature  = train_data[0]
+    print(feature)    
+    
     '''
 
     data_path = './data/data.json'
