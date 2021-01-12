@@ -102,3 +102,47 @@ class MMdialog(GPT2PreTrainedModel):
 
         return lm_logits, loss, img_hidden_states  
 
+
+class VEID(GPT2PreTrainedModel):
+
+    def __init__(self, config): 
+        super(VEID, self).__init__(config) 
+        self.transformer = GPT2Model(config)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False) 
+        self.image_inverse = nn.Linear(config.n_embd, 512) 
+
+        self.init_weights() 
+        self.tie_weights()
+
+    def tie_weights(self):
+        self._tie_or_clone_weights(self.lm_head, self.transformer.wte) 
+
+    def img_loss(self, img, target, img_bank): 
+        img = img / torch.norm(img, 1) 
+        target = target / torch.norm(target, 1) 
+        fenzi = img * target 
+        fenzi = torch.sum(fenzi) 
+        fenzi = torch.exp(fenzi)
+        #print(fenzi.size())
+        fenmu = img * img_bank 
+        fenmu = torch.sum(fenmu, dim=1)
+        fenmu1 = torch.exp(fenmu)
+        fenmu1 = torch.sum(fenmu1) 
+        return fenzi / fenmu1, fenmu
+        
+
+
+    def forward(self, input_ids, token_type_ids, target_ids, target_feature, img_bank):
+        transformer_outputs = self.transformer(input_ids=input_ids, token_type_ids=token_type_ids)
+        hidden_states = transformer_outputs[0] 
+        
+        logits = self.lm_head(hidden_states)
+        txt_loss_fct = CrossEntropyLoss(ignore_index=-100)
+        loss_txt = txt_loss_fct(logits.squeeze(0), target_ids.squeeze(0)) 
+
+        img_feature = hidden_states[:, -1, :]
+        img_feature = self.image_inverse(img_feature) 
+        img_loss, fenmu = self.img_loss(img_feature, target_feature, img_bank)
+
+        return loss_txt+1000*img_loss, loss_txt, 1000*img_loss, fenmu  
+    

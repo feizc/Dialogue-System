@@ -6,7 +6,9 @@ from PIL import Image
 from collections import Counter 
 import torch 
 import torchvision
-import torchvision.transforms as transformers
+import torchvision.transforms as transformers 
+import torch 
+from clip import load 
 
 SPEAKER = ['[speaker1]', '[speaker2]']
 
@@ -20,7 +22,9 @@ def img2id(path):
     for img in img_name_list:
         s = str(i)[1:]
         i += 1
-        img2id_dict[img] = s
+        img2id_dict[img] = s 
+    with open('img2id.json', 'w', encoding='utf-8') as f:
+        json.dump(img2id_dict, f, indent=4)
     return img2id_dict
 
 
@@ -280,11 +284,79 @@ def label_process(data_path):
 
 
 
+def high_quality_data(data_path): 
+    data_path = os.path.join(data_path, 'data.json') 
+    with open(data_path, 'r', encoding='utf-8') as f: 
+        data_dict = json.load(f) 
+    
+    res_list = []
+    for dia_id in data_dict.keys(): 
+        utterance_list = []
+        for utterance in data_dict[dia_id]:
+            if 'img_id' in utterance.keys() and 'txt' in utterance.keys():
+                his_utterance = utterance_list[-4:]
+                if len(his_utterance) == 4:
+                    dialog_pair = {}
+                    dialog_pair['history'] = his_utterance 
+                    dialog_pair['answer'] = utterance 
+                    res_list.append(dialog_pair)
+                    #break
+            if 'txt' in utterance.keys():
+                utterance_list.append(utterance) 
+        # print(data_dict[dia_id]) 
+        # break 
+
+    print(len(res_list))
+    with open('small_train.json', 'w', encoding='utf-8') as f:
+        json.dump(res_list, f, indent=4)
+    with open('small_valid.json', 'w', encoding='utf-8') as f:
+        json.dump(res_list[-4000:], f, indent=4)
+
+
+
+
+# 使用clip提取图像特征 
+def img_feature_clip(data_path):
+    img_list_path = os.path.join(data_path, 'image')
+    img_list = os.listdir(img_list_path)
+    
+    with open('img2id.json', 'r', encoding='utf-8') as f:
+        img2id_dict = json.load(f)
+    
+    print(img2id_dict)
+
+    device = 'duda' if torch.cuda.is_available() else 'cpu'
+    model, transform = load('ViT-B/32', device=device) 
+    
+    id2feature = {}
+
+    for img in img_list: 
+        if 'DS_Store' in img:
+            continue
+        img_path = os.path.join(img_list_path, img)
+        image = transform(Image.open(img_path)).unsqueeze(0)
+        img_features = model.encode_image(image)
+        # print(img_features.size())
+        id2feature[img2id_dict[img]] = img_features.tolist()[0] 
+        
+
+    #print(id2feature)
+    with open('id2feature_clip.json', 'w', encoding='utf-8') as f:
+        json.dump(id2feature, f, indent=4) 
+    
+
+
+
 if __name__ == "__main__":
 
     data_path = os.getcwd()
-    label_process(data_path)
+    high_quality_data(data_path) 
 
+    #label_process(data_path)
+    #img2id_dict = img2id(data_path) 
+    #print(img2id_dict) 
+    # img_feature_clip(data_path)
+    
     '''
     img2id_dict = img2id(data_path)
     print(img2id_dict) 

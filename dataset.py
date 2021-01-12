@@ -128,12 +128,14 @@ class VEIDDataset(Dataset):
     def __getitem__(self, index):
         history = self.data[index]['history'] 
         answer = self.data[index]['answer'] 
-        input_ids, target_ids, token_type_ids, feature = create_input_clip(history, answer, self.tokenizer, self.id2feature)
+        input_ids, target_ids, token_type_ids, feature, img_id = create_input_clip(history, answer, self.tokenizer, self.id2feature)
         input_ids = torch.Tensor(input_ids).long() 
         target_ids = torch.Tensor(target_ids).long()
         token_type_ids = torch.Tensor(token_type_ids).long()
-        feature = torch.from_numpy(np.array(feature)).float()
-        return input_ids, target_ids, token_type_ids, feature 
+        feature = torch.from_numpy(np.array(feature)).float() 
+        #print(img_id)
+        img_id = torch.Tensor([img_id]).long() 
+        return input_ids, target_ids, token_type_ids, feature, img_id  
 
 
 
@@ -250,9 +252,9 @@ def  create_input_clip(history, answer, tokenizer, id2feature):
     inp = [bos] + tokenize(answer['txt'], tokenizer) + [eos] 
     input_ids += [t_sp] + inp + [tag]
     target_ids += inp + [-100, -100]
-    token_type_ids += [-100]*(len(inp)+2) 
+    token_type_ids += [t_sp]*(len(inp)+2) 
     #print(len(input_ids), len(target_ids), len(token_type_ids))
-    return input_ids, target_ids, token_type_ids, id2feature[answer['img_id']]
+    return input_ids, target_ids, token_type_ids, id2feature[answer['img_id']], int(answer['img_id'])
 
 
 
@@ -335,7 +337,7 @@ if __name__ == "__main__":
     train_data = VEIDDataset(data_path, tokenizer, id2feature)
     input_ids, target_ids, token_type_ids, feature  = train_data[0]
     print(feature)    
-    
+
     '''
 
     data_path = './data/data.json'
