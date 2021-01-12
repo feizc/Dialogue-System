@@ -88,10 +88,9 @@ def pretrain_data_process():
 
 
 # calculate the accuracy of respond 
-def accuracy_compute(lm_logits, targets, k):
+def accuracy_compute(lm_logits, targets, k=5):
     _, idx = torch.topk(lm_logits, k, 1)
     correct = idx.eq(targets.view(-1,1).expand_as(idx))
-    #print(correct)
     correct_total = correct.view(-1).float().sum().item()
     nums = targets.view(-1).detach().cpu().numpy()
     length = 0
@@ -122,5 +121,9 @@ class AverageMeter(object):
 
 
 if __name__ == "__main__": 
-    pretrain_data_process()
+    #pretrain_data_process() 
+    a = torch.Tensor([[0.1, 0.2, 0.3, 0.4, 0.5],[0.1, 0.2, 0.3, 0.4, 0.5]])
+    b = torch.Tensor([4,3])
+    print(accuracy_compute(a,b, 2))
+
 

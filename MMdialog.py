@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss  
 import os
 
-from transformers import GPT2Model, GPT2PreTrainedModel 
+from transformers import * 
 
 emotion_num = 62 
 
@@ -27,6 +27,25 @@ class LabelPredict(GPT2PreTrainedModel):
         return loss, logits  
 
 
+class LabelBERT(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = 274 
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, self.num_labels)
+
+        self.init_weights()
+
+    def forward(self, his, respond):
+        outputs = self.bert(input_ids=his)
+        pooled_output = outputs[1]
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        loss_fct = CrossEntropyLoss()
+        loss = loss_fct(logits.view(-1, self.num_labels), respond.view(-1))
+        return loss, logits
 
 
 
