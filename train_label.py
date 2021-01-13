@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import numpy 
 import json 
 
-from MMdialog import LabelPredict 
+from MMdialog import LabelPredict,LabelBERT 
 from dataset import LPDataset 
 from utils import accuracy_compute, AverageMeter 
 
@@ -26,7 +26,7 @@ ckpt_path = 'ckpt/label_predict/model.bin'
 use_cuda = torch.cuda.is_available() 
 device = torch.device('cuda' if use_cuda else 'cpu') 
 
-checkpoint_usage = True 
+checkpoint_usage = False  
 gradient_accumulation_steps = 5 
 epochs = 40 
 print_freq = 100
@@ -38,35 +38,38 @@ def main():
         tokenizer = BertTokenizer.from_pretrained('ckpt/label_predict', do_lower_case=True)
         tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
     
-        model_config = GPT2Config.from_pretrained('ckpt/label_predict') 
-        model = LabelPredict(model_config) 
+        model_config = BertConfig.from_pretrained('ckpt/label_predict') 
+        model = LabelBERT(model_config) 
         ckpt = torch.load(ckpt_path, map_location='cpu') 
         model.load_state_dict(ckpt['model'])
         # model.resize_token_embeddings(len(tokenizer)) 
     else:
         tokenizer = BertTokenizer.from_pretrained('ckpt/cdial-gpt', do_lower_case=True) 
-        model = LabelPredict('ckpt/cdial-gpt')
+        model = LabelBERT.from_pretrained('bert-base-chinese')
         tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT) 
         model.resize_token_embeddings(len(tokenizer)) 
 
     model = model.to(device)
     optimizer = AdamW(model.parameters(), lr=lr) 
+    print('model download!')
 
     train_dataset = LPDataset(train_data_path, tokenizer) 
-    train_loader = DataLoader(train_dataset, batch_size=5, collate_fn=lambda x: collate_fn(x, tokenizer.pad_token_id)) 
+    train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, collate_fn=lambda x: collate_fn(x, tokenizer.pad_token_id)) 
     val_dataset = LPDataset(val_data_path, tokenizer)
-    val_loader = DataLoader(val_dataset, batch_size=1) 
+    val_loader = DataLoader(val_dataset, batch_size=5, collate_fn=lambda x: collate_fn(x, tokenizer.pad_token_id)) 
+
+    print('begin to experiment!')
 
     for epoch in range(epochs):
         train(model=model, optimizer=optimizer, dataset=train_loader, epoch=epoch)
         #print(his.size(), respond) 
+        #eval(model=model, dataset=val_loader, epoch=epoch)
+         
+        torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
+                    '%s/model.bin'%(model_path))
+        model.config.to_json_file(os.path.join(model_path, 'config.json'))
+        tokenizer.save_vocabulary(model_path) 
         break
-
-    return 
-    torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
-                '%s/model.bin'%(model_path))
-    model.config.to_json_file(os.path.join(model_path, 'config.json'))
-    tokenizer.save_vocabulary(model_path)
 
 
 def train(model, optimizer, dataset, epoch):
@@ -106,8 +109,33 @@ def train(model, optimizer, dataset, epoch):
 
 
 
+def eval(model, dataset, epoch):
+    model.eval() 
 
+    avg_loss = AverageMeter()
+    avg_acc = AverageMeter() 
 
+    iteration = 1 
+    with torch.no_grad():
+        for instance in dataset:
+            his, respond = instance 
+            his, respond = his.to(device), respond.to(device) 
+
+            loss, logits = model(his, respond)
+            acc = accuracy_compute(logits, respond, 5)
+            avg_loss.update(loss.item()) 
+            avg_acc.update(acc)
+            # print(acc)
+            # print(loss.item())
+            if iteration % print_freq == 0:
+                print('Epoch:[{0}][{1}/{2}]\t'
+                'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                'Acc {acc.val:.3f} ({acc.avg:.3f})'.format(epoch, iteration, len(dataset),loss=avg_loss, acc=avg_acc))
+            
+            # print(logits.size())
+
+            iteration += 1 
+            # break 
 
 
 def collate_fn(batch, pad_token):

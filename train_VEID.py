@@ -56,14 +56,19 @@ def main():
     print(img_bank.size())
     
     train_dataset = VEIDDataset(train_data_path, tokenizer, id2feature) 
-    val_dataset = VEIDDataset(val_data_path, tokenizer, id2feature) 
+    #val_dataset = VEIDDataset(val_data_path, tokenizer, id2feature) 
 
     train_loader = DataLoader(train_dataset, batch_size=1)
-    val_loader = DataLoader(val_dataset, batch_size=1)
+    #val_loader = DataLoader(val_dataset, batch_size=1)
 
+    ckpt_path = 'ckpt/VEID'
     for epoch in range(epochs): 
-        train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_loader, epoch=epoch, img_bank=img_bank) 
-        break
+        acc = train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_loader, epoch=epoch, img_bank=img_bank) 
+        torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
+                    '%s/epoch_%d_acc_%.3f'%(ckpt_path, epoch, acc))
+        model.config.to_json_file(os.path.join(ckpt_path, 'config.json'))
+        tokenizer.save_vocabulary(ckpt_path) 
+        break 
 
 
 
@@ -110,6 +115,7 @@ def train(model, tokenizer, optimizer, dataset, epoch, img_bank):
         
         iteration += 1 
         break
+    return avg_acc.avg
 
 def img_bank_construct(id2feature):
     img_bank = []
