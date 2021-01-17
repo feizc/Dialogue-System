@@ -12,6 +12,9 @@ data_path = 'data/data.json'
 reference_path = 'data/LCCC-base_train.json'
 
 
+SPECIAL_TOKENS = ['[BOS]', '[EOS]', '[speaker1]', '[speaker2]', '[IMG]', '[TAG]', '[PAD]']
+SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_special_tokens':['[speaker1]', '[speaker2]', '[IMG]', '[TAG]'], 'pad_token':'[PAD]'}
+
 # calculate the static for VEID dataset 
 def dataset_static(data):
     tokenizer = BertTokenizer.from_pretrained('ckpt/mmgpt', do_lower_case=True) 
@@ -99,10 +102,10 @@ def easy_split(data, reference):
             print(data[dialog_id])
     print(len(train_id))
 
-    vaild_id = res_id[:1000]
-    test_id = res_id[1000:2000]
-    train_id = train_id + res_id[2000:]
-    '''
+    #vaild_id = res_id[:1000]
+    #test_id = res_id[1000:2000]
+    #train_id = train_id + res_id[2000:]
+    
     valid_id = []
     test_id = []
     for id in res_id:
@@ -113,7 +116,7 @@ def easy_split(data, reference):
             test_id.append(id) 
         else:
             train_id.append(id)
-    '''
+    
 
     print('begin to split dataset!')
     for dialog_id in data.keys():
@@ -133,11 +136,45 @@ def easy_split(data, reference):
         json.dump(test_data, f, indent=4)
 
 
-
+def set_interaction(): 
+    tokenizer = BertTokenizer.from_pretrained('ckpt/VEID', do_lower_case=True)  
+    tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
+    
+    with open('data/small_train.json', 'r', encoding='utf-8') as f:
+        total_dias = json.load(f) 
+    # print(total_dias[0])
+    with open('data/correct_split.json', 'r', encoding='utf-8') as f: 
+        correct_dias = json.load(f) 
+    
+    correct_lines = []
+    for dia in correct_dias: 
+        refer = tokenizer.convert_ids_to_tokens(dia) 
+        #print(refer)
+        refer_s = ''
+        for i in range(2, len(refer)): 
+            if refer[i] == '[EOS]':
+                break 
+            refer_s += refer[i] 
+        print(refer_s) 
+        
+        correct_lines.append(refer_s) 
+    # print(correct_lines[0]) 
+    return
+    refine_dias = []
+    for dia in total_dias:
+        if dia['history'][0]['txt'] in correct_lines: 
+            refine_dias.append(dia) 
+            print(dia)
+    with open('data/new_small_train.json', 'w', encoding='utf-8') as f: 
+        json.dump(refine_dias, f, indent=4)
 
 
 if __name__ == "__main__":
     
+    set_interaction()
+
+    '''
+    # 数据集划分和统计信息 
     with open(data_path, 'r', encoding='utf-8') as f: 
         data = json.load(f) 
     print(len(data.keys()))
@@ -148,7 +185,7 @@ if __name__ == "__main__":
         reference = json.load(f) 
     
     easy_split(data, reference)
-
+    '''
 
 
  

@@ -18,10 +18,10 @@ SPECIAL_TOKENS_DICT = {'bos_token':'[BOS]', 'eos_token':'[EOS]', 'additional_spe
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda' if use_cuda else 'cpu')
 train_data_path = 'data/small_train.json'
-val_data_path = 'data/small_valid.json'
+#val_data_path = 'data/small_valid.json'
 
 
-checkpoint_usage = False 
+checkpoint_usage = True 
 epochs = 20 
 lr = 5e-5
 gradient_accumulation_steps = 5 
@@ -31,10 +31,10 @@ print_freq = 1
 def main():
        # 模型初始化 
     if checkpoint_usage == True: 
-        ckpt_path = 'ckpt/mmgpt/model.bin'
-        tokenizer = BertTokenizer.from_pretrained('ckpt/mmgpt', do_lower_case=True)
+        ckpt_path = 'ckpt/VEID/model.bin'
+        tokenizer = BertTokenizer.from_pretrained('ckpt/VEID', do_lower_case=True)
         tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
-        model_config = GPT2Config.from_pretrained('ckpt/mmgpt')
+        model_config = GPT2Config.from_pretrained('ckpt/VEID')
 
         model = VEID(model_config)
         ckpt = torch.load(ckpt_path, map_location='cpu')
@@ -61,9 +61,19 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=1)
     #val_loader = DataLoader(val_dataset, batch_size=1)
 
-    ckpt_path = 'ckpt/VEID'
+    ckpt_path = 'ckpt/VEID' 
+    total_correct_list = []
     for epoch in range(epochs): 
-        acc = train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_loader, epoch=epoch, img_bank=img_bank) 
+        correct_split, acc = train(model=model, tokenizer=tokenizer, optimizer=optimizer, dataset=train_loader, epoch=epoch, img_bank=img_bank) 
+        
+        for dia in correct_split:
+            if dia not in total_correct_list:
+                total_correct_list.append(dia)
+        
+        with open('data/correct_split.json', 'w', encoding='utf-8') as f: 
+            json.dump(total_correct_list, f)
+
+        break
         torch.save({'model':model.state_dict(), 'optimizer': optimizer.state_dict()},\
                     '%s/epoch_%d_acc_%.3f'%(ckpt_path, epoch, acc))
         model.config.to_json_file(os.path.join(ckpt_path, 'config.json'))
@@ -83,16 +93,19 @@ def train(model, tokenizer, optimizer, dataset, epoch, img_bank):
     text_avg_loss = AverageMeter()
     img_avg_loss = AverageMeter()
     avg_acc = AverageMeter()
-    iteration = 1
+    iteration = 1 
+    correct_split = []
 
     for instance in dataset: 
         input_ids, target_ids, token_type_ids, feature, img_id = instance 
-        if token_type_ids.size(0) > 450:
+        if token_type_ids.size(-1) > 450:
             continue
         input_ids, target_ids, token_type_ids, feature, img_id = input_ids.to(device), target_ids.to(device), token_type_ids.to(device), feature.to(device), img_id.to(device) 
         #print(feature.size())
-        loss,text_loss, img_loss, fenmu = model(input_ids, token_type_ids, target_ids, feature, img_bank)
-
+        try:
+            loss,text_loss, img_loss, fenmu = model(input_ids, token_type_ids, target_ids, feature, img_bank)
+        except:
+            print(input_ids.size())
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         if iteration % gradient_accumulation_steps == 0:
@@ -101,6 +114,8 @@ def train(model, tokenizer, optimizer, dataset, epoch, img_bank):
         #print(img_id)
         _, idx = torch.topk(fenmu, k=60)
         acc = idx.eq(img_id.view(-1).expand_as(idx)).float().sum().item()
+        if acc > 0.5:
+            correct_split.append(input_ids[0].tolist())
         avg_acc.update(acc)
         total_avg_loss.update(loss.item())
         text_avg_loss.update(text_loss.item())
@@ -115,7 +130,8 @@ def train(model, tokenizer, optimizer, dataset, epoch, img_bank):
         
         iteration += 1 
         break
-    return avg_acc.avg
+    return correct_split, avg_acc.avg 
+
 
 def img_bank_construct(id2feature):
     img_bank = []

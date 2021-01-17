@@ -34,7 +34,62 @@ def greedy_decode(input_embs, token_type_ids, model, tokenizer, max_len=20):
     return res
 
 
+
 # beam search 
+def beam_search(src, tokenizer, model, args):
+    special_token_ids = [tokenizer.bos_token, tokenizer.eos_token_id]
+    current_output = [] 
+    hyplist = [([], 0., current_output)] 
+    best_state = None 
+    comp_hyplist = [] 
+
+    src = tokenize(src, tokenizer) 
+    for i in range(args.max_length):
+        new_hyplist = [] 
+        argmin = 0 
+        for out, lp, st in hyplist:
+            input_ids = build_input_from_input_beam(src, st, tokenizer) 
+            input_ids = input_ids.to(args.device) 
+            logits = model(input_ids)[0] 
+            logp = F.log_softmax(logits, dim=-1)[:, -1, :]
+            lp_vec = logp.cpu().data.numpy() + lp 
+            lp_vec = np.squeeze(lp_vec) 
+
+            if i >= args.min_length:
+                new_lp = lp_vec[tokenizer.eos_token_id] + args.penalty * (len(out) + 1) 
+                comp_hyplist.append((out, new_lp)) 
+                if best_state is None or best_state < new_lp:
+                    best_state = new_lp 
+            count = 1 
+            for o in np.argsort(lp_vec)[::-1]:
+                if o == tokenizer.unk_token_id or o == tokenizer.eos_token_id:
+                    continue 
+                new_lp = lp_vec[o] 
+                if len(new_hyplist) == args.beam_size: 
+                    if new_hyplist[argmin][1] < new_lp:
+                        new_st = copy.deepcopy(st) 
+                        new_st.append(int(o)) 
+                        new_hyplist[argmin] = (out + [o], new_lp, new_st) 
+                        argmin = min(enumerate(new_hyplist), key=lambda h: h[1][1])[0] 
+                    else:
+                        break 
+                else:
+                    new_st = copy.deepcopy(st) 
+                    new_st.append(int(o))
+                    new_hyplist.append((out + [o], new_lp, new_st)) 
+                    if len(new_hyplist) == args.beam_size:
+                        argmin = min(enumerate(new_hyplist), key=lambda h: h[1][1])[0] 
+                count += 1 
+        hyplist = new_hyplist 
+    if len(comp_hyplist) > 0: 
+        maxhyps = sorted(comp_hyplist, key=lambda h: -h[1])[:1] 
+        return [tokenizer.decode(maxhyps[0][0], skip_special_tokens=True).replace("\n", "") + '\n']
+    else:
+        return [([], 0)]    
+
+
+
+
 
 # top-k sampling 
 def sample_sequence(input_embs, token_type_ids, model, tokenizer, max_len=20): 
@@ -124,8 +179,6 @@ def generate_responce(model, dialog_list, id2feature, tokenizer):
             #res = tokenizer.decode(res, skip_special_tokens=True)
             #print(res)
             break
-
-
 
 
 
