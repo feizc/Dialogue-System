@@ -129,8 +129,12 @@ class VEID(GPT2PreTrainedModel):
         fenmu1 = torch.exp(fenmu)
         fenmu1 = torch.sum(fenmu1) 
         return fenzi / fenmu1, fenmu
-        
-
+    
+    def infer(self, input_ids, token_type_ids): 
+        transformer_outputs = self.transformer(input_ids=input_ids, token_type_ids=token_type_ids) 
+        hidden_states = transformer_outputs[0] 
+        logits = self.lm_head(hidden_states)
+        return logits
 
     def forward(self, input_ids, token_type_ids, target_ids, target_feature, img_bank):
         transformer_outputs = self.transformer(input_ids=input_ids, token_type_ids=token_type_ids)

@@ -309,8 +309,8 @@ def high_quality_data(data_path):
     print(len(res_list))
     with open('small_train.json', 'w', encoding='utf-8') as f:
         json.dump(res_list, f, indent=4)
-    with open('small_valid.json', 'w', encoding='utf-8') as f:
-        json.dump(res_list[-4000:], f, indent=4)
+    #with open('small_valid.json', 'w', encoding='utf-8') as f:
+    #    json.dump(res_list[-4000:], f, indent=4)
 
 
 
