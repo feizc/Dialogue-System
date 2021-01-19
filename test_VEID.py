@@ -281,17 +281,34 @@ meter = AverageMeter()
 with open('data/new_small_train.json', 'r', encoding='utf-8') as f:
     data = json.load(f) 
 
+total_num = len(data)
+current_num = 0 
+
+case_study = []
+
 for dia in data: 
-    # print(dia) 
+    #print(dia) 
+    case = {}  
+    print(current_num, '/', total_num)
+    case['history'] = dia['history']
     reference = [[dia['answer']['txt']]] 
     print(reference)
+    case['reference'] = reference 
     hypothesis = [beam_search(dia['history'], tokenizer, model, args)[0].replace(' ', '')]
     print(hypothesis)
+    case['hypothesis'] = hypothesis 
     bleu = corpus_bleu(reference, hypothesis, weights=(1,0,0,0), smoothing_function=smooth.method1)
-    meter.update(bleu)
+    meter.update(bleu) 
+    case['bleu'] = bleu 
     print(bleu, meter.avg)
+    current_num += 1 
+    case_study.append(case)
+
     break 
 
+#print(case_study)
+with open('case_study.json', 'w', encoding='utf-8') as f: 
+    json.dump(case_study, f, indent=4)
 
 # model = torch.load("log_pretrain/DPKS_model5490.bin")
 '''

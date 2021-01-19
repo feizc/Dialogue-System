@@ -169,18 +169,99 @@ def set_interaction():
         json.dump(refine_dias, f, indent=4)
 
 
+
+def set_split():
+    with open('data/new_small_train.json', 'r', encoding='utf-8') as f: 
+        small_data = json.load(f) 
+    
+    #print(small_data[0])
+    with open('data/data.json', 'r', encoding='utf-8') as f: 
+        origin_data = json.load(f) 
+    
+    valid_data = {} 
+    test_data = {} 
+    valid_num = 0 
+    test_num = 0 
+    for dialog in small_data:
+        query = dialog['history'][0]['txt'] 
+        find_flag = False 
+        for data in origin_data.keys():
+            for utter in origin_data[data]:
+                if query in utter['txt']: 
+                    find_flag = True 
+                    if valid_num < 1000:
+                        valid_data[data] = origin_data[data]
+                        valid_num += 1 
+                    elif test_num < 1000:
+                        test_data[data] = origin_data[data] 
+                        test_num += 1 
+                    else:
+                        json_save('validation.json', valid_data) 
+                        json_save('test.json', test_data)
+                        return  
+                    break
+            if find_flag == True:
+                break 
+
+
+def json_save(path, data):
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4) 
+
+def hard_split():
+    with open('data/data1.json', 'r', encoding='utf-8') as f:
+        data_dict = json.load(f) 
+    print(len(data_dict.keys())) 
+    with open('data/test.json', 'r', encoding='utf-8') as f: 
+        test_dict = json.load(f) 
+    print(len(test_dict.keys())) 
+    with open('data/validation.json', 'r', encoding='utf-8') as f: 
+        valid_dict = json.load(f) 
+    print(len(valid_dict))
+
+    with open('data/img2id.json', 'r', encoding='utf-8') as f: 
+        img2id = json.load(f)
+    print(len(img2id.keys())) 
+
+    new_train_dict = {} 
+    test_hard_dict = {}
+    for dia in data_dict: 
+        flag = False
+        for utter in data_dict[dia]: 
+            if 'img_id' in utter.keys():
+                img_id = int(utter['img_id'])
+                if img_id > 274:
+                    flag = True 
+        if flag == True:
+            test_hard_dict[dia] = data_dict[dia] 
+        else:
+            if dia in test_dict.keys():
+                continue 
+            if dia in valid_dict.keys():
+                continue
+            new_train_dict[dia] = data_dict[dia]
+    
+    print(len(new_train_dict.keys()))
+    print(len(test_hard_dict.keys())) 
+    json_save('data/train.json', new_train_dict)
+    json_save('data/test_hard.json', test_hard_dict)
+
+
+
+
+
 if __name__ == "__main__":
     
-    set_interaction()
+    #set_interaction() 
+    #set_split()
+
+    data_path = 'data/test_hard.json'
+    # 数据集划分和统计信息 
+    with open(data_path, 'r', encoding='utf-8') as f:
+        data = json.load(f) 
+    dataset_static(data) 
 
     '''
-    # 数据集划分和统计信息 
-    with open(data_path, 'r', encoding='utf-8') as f: 
-        data = json.load(f) 
-    print(len(data.keys()))
-    
-    # dataset_static(data)
-
     with open(reference_path, 'r', encoding='utf-8') as f:
         reference = json.load(f) 
     

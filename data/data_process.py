@@ -215,10 +215,12 @@ def emotion_label_calculate(lines):
 
 # 对话内容预处理
 def dialog_preprocess(data_path):
-    excel_path = os.path.join(data_path, 'dialog')
+    excel_path = os.path.join(data_path, 'dialog1')
     excel_name_list = os.listdir(excel_path)
     
-    img2id_dict = img2id(data_path)
+    #img2id_dict = img2id(data_path) 
+    with open('new_img2id.json', 'r', encoding='utf-8') as f:
+        img2id_dict = json.load(f) 
     img_dot_name_dict = img_dot_name_create(img2id_dict) 
 
     emotion_counter = Counter()
@@ -249,7 +251,7 @@ def dialog_preprocess(data_path):
         data = data2json(lines, img2id_dict, img_dot_name_dict, emotion_dict) 
         dialog.update(data) 
     
-    with open('data.json', 'w', encoding='utf-8') as f:
+    with open('data1.json', 'w', encoding='utf-8') as f:
         json.dump(dialog, f, indent=4)
 
     print(len(dialog.keys()))
@@ -314,7 +316,6 @@ def high_quality_data(data_path):
 
 
 
-
 # 使用clip提取图像特征 
 def img_feature_clip(data_path):
     img_list_path = os.path.join(data_path, 'image')
@@ -347,10 +348,13 @@ def img_feature_clip(data_path):
 
 
 
+
 if __name__ == "__main__":
 
     data_path = os.getcwd()
-    high_quality_data(data_path) 
+    dialog_preprocess(data_path)
+    # 生成4-1形式的简单问答形式 
+    # high_quality_data(data_path) 
 
     #label_process(data_path)
     #img2id_dict = img2id(data_path) 
