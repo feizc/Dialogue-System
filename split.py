@@ -22,13 +22,15 @@ def dataset_static(data):
     vocab_counter = Counter() 
     utterence_list = [] 
     visual_expression_list = []
-    emotion_list = []
+    emotion_list = [] 
+    utterence_len_list = []
     for dialog_id in data:
         for utterance in data[dialog_id]:
             if 'txt' in utterance.keys():
                 sentence_list = tokenizer.tokenize(utterance['txt'])
                 utterence_list.append(sentence_list)
                 vocab_counter.update(sentence_list) 
+                utterence_len_list.append(len(sentence_list))
             if 'img_id' in utterance.keys():
                 visual_expression_list.append(int(utterance['img_id'])) 
             if 'emotion_id' in utterance.keys():
@@ -42,8 +44,17 @@ def dataset_static(data):
     for sentence in utterence_list:
         token_num += len(sentence)
     print('avg tokens in an utterance:', float(token_num/len(utterence_list))) 
-    frequency_plot(visual_expression_list, 'visual expression id', 'blue')
-    frequency_plot(emotion_list, 'emotion id', 'red')
+    
+    emotion_counter = Counter(emotion_list) 
+    total_p = 0.0 
+    for i in range(20):
+        tmp_p = float(emotion_counter[i]/len(emotion_list))
+        total_p += tmp_p 
+        print(tmp_p)
+    print(1-total_p)
+    #print(emotion_counter)
+    frequency_plot(visual_expression_list, 'visual expression id', 'lavender')
+    #frequency_plot(utterence_len_list, 'Number of tokens', 'red')
 
 
 # plot the frequency figure 
@@ -64,7 +75,7 @@ def frequency_plot(data, x_label, color):
     edgecolor:长条形边框的颜色
     alpha:透明度
     """
-    plt.hist(data, bins=bin_size, facecolor=color, edgecolor="black", alpha=0.7)
+    plt.hist(data, bins=bin_size, range=(0,310), facecolor=color, edgecolor="black", alpha=0.7)
     # 显示横轴标签
     plt.xlabel(x_label)
     # 显示纵轴标签
@@ -255,10 +266,17 @@ if __name__ == "__main__":
     #set_interaction() 
     #set_split()
 
-    data_path = 'data/test_hard.json'
+    data_path = 'data/data.json'
     # 数据集划分和统计信息 
     with open(data_path, 'r', encoding='utf-8') as f:
         data = json.load(f) 
+    
+    with open('data/data1.json', 'r', encoding='utf-8') as f: 
+        data1 = json.load(f) 
+    
+    for key in data1.keys():
+        data[key] = data1[key]
+
     dataset_static(data) 
 
     '''
