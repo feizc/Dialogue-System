@@ -1,4 +1,4 @@
-# We Want vivid Conversations: Incorporating Internet Meme into Open-domain Dialogue 
+# We Want Vivid Conversations: Incorporating Internet Meme into Open-domain Dialogue 
 
 * This project provides a large-scale internet Meme incorporated Open-domain Dialogue (MOD) dataset and a unified multi-modal dialog model trained on this dataset. 
 
@@ -56,18 +56,19 @@ The dataset is only for research purposes. Without permission, it may not be use
 
 # Data Statistic
 
-The statistic of our corpus is presented below. 
+The statistic of our whole corpus is presented below. 
 
 |  Dataset Statistic            | Size                            |
 |:-----------------------------:|---------------------------------|
 | dialogues (chat sessions)     | 45,174                          |
 | utterances                    | 606,014                         |
 | tokens                        | 5,339                           |
-|:-----------------------------:|---------------------------------|
 | avg of utterences in a dialog | 13.42                           |
 | avg of internet memes in a dialog | 4.06                        |
 | avg of tokens in an utterance | 11.46                           |
 
+
+We also provide the split statistics of MOD dataset. 
 
 |            | Train | Valid | Easy test | Hard test | 
 |:-----------|:------|:------|:----------|:----------| 
