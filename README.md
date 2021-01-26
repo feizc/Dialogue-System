@@ -1,9 +1,11 @@
 # We Want vivid Conversations: Incorporating Internet Meme into Open-domain Dialogue 
 
+* This project provides a large-scale internet Meme incorporated Open-domain Dialogue (MOD) dataset and a unified multi-modal dialog model trained on this dataset. 
+
 
 # How to get the dataset 
 
-We release the train/valid data set on google drive and two test version sets will be used online testing leaderboard.  
+We release the train/valid data set on [google drive](https://drive.google.com/drive/folders/1EzUKJbcMNafmnaU7f5iDZ8ThgFIx0OsO?usp=sharing) and two test version sets will be used online challenging leaderboard.  
 
 # Copyright 
 
@@ -52,17 +54,32 @@ The dataset is only for research purposes. Without permission, it may not be use
 }
 ```
 
+# Data Statistic
 
-### Contributions
+The statistic of our corpus is presented below. 
 
-1. We provide a new multi-modal dialogue dataset incorporated with sticker/meme 
+|  Dataset Statistic            | Size                            |
+|:-----------------------------:|---------------------------------|
+| dialogues (chat sessions)     | 45,174                          |
+| utterances                    | 606,014                         |
+| tokens                        | 5,339                           |
+|:-----------------------------:|---------------------------------|
+| avg of utterences in a dialog | 13.42                           |
+| avg of internet memes in a dialog | 4.06                        |
+| avg of tokens in an utterance | 11.46                           |
 
-2. We propose an unified framework for multi-modal dialogue based on GPT2 
 
-3. We introduce an unsupervised annotation for visual expression with our model 
- 
+|            | Train | Valid | Easy test | Hard test | 
+|:-----------|:------|:------|:----------|:----------| 
+|dialogues   |41,644 | 1,000 | 1,000     | 1,530     |
+|utterances  |558,181| 13,666| 13,999    | 20,358    | 
+|tokens      | 5,249 | 2,724 | 2,782     | 3,166     | 
+|internet memes| 274 | 274   | 274       | 307       |
 
-### Baseline Implementation 
+
+
+
+# Baseline Implementation 
 
 1. Pretrain the expression image feature extractor on the basis of efficientnet 
 
