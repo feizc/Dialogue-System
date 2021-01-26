@@ -1,7 +1,8 @@
 # We Want Vivid Conversations: Incorporating Internet Meme into Open-domain Dialogue 
 
-* This project provides a large-scale internet Meme incorporated Open-domain Dialogue (MOD) dataset and a unified multi-modal dialog model trained on this dataset. 
+* This project provides a large-scale internet Meme incorporated Open-domain Dialogue (MOD) dataset and a unified multi-modal dialog model trained on this dataset as reference resolution. 
 
+* Considering that properly annotated MOD data is still scarce, we plan to continue enriching our dataset in the future. 
 
 # How to get the dataset 
 
