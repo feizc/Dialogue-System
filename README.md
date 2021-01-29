@@ -85,21 +85,53 @@ We also provide the split statistics of MOD dataset.
 
 We present a unified multi-model dialogue model for reference solution.
 
-Specifically, we concatenate all dialogue histories, including texts and memes,  into one context sentence, and use this sentence to predict the response. 
+Specifically,  we concatenate all dialogue histories, including texts and memes,  into one context sentence, and use this sentence to predict the response. 
+
+## Quck Start 
+
 
 # Evaluation 
 
+
+## Text Response Modeling 
+
 All responses are generated using the Nucleus Sampling scheme with a threshold 0.9 and temperature 0.7. 
 
-## Text Response 
 
 |            | Perplexity | B-2 | B-4 | Dist-1 | Dist-2 |
 |:-----------|:------|:------|:----------|:----------|:--------| 
 | easy test              |
-|MHERAD  |41,644 | 1,000 | 1,000     | 1,530     |   |
-|CDial-GPT  |558,181| 13,666| 13,999    | 20,358    |   |
-|tokens      | 5,249 | 2,724 | 2,782     | 3,166     |   |
-|internet memes| 274 | 274   | 274       | 307       |   |
+|MHERAD  |31.50 | 2.10 | 0.46     | 5.45     | 8.81  |
+|CDial-GPT  | 19.32 | 5.63 | 1.15    | 7.22  | 9.65  |
+|MOD-GPT  | 19.18 | 6.06 | 1.88   | 8.01     | 10.25  |
+|hard test               | 
+|MHERAD  | 32.27 | 2.05 | 0.44 | 5.50 | 8.76| 
+|CDial-GPT | 19.68 | 5.54 | 1.18 | 8.03 | 10.12 | 
+|MOD-GPT | 19.41 | 5.98 | 1.76 | 8.20 | 11.72 | 
+
+## Meme Usage Prediction 
+
+|        | Classification Accuracy | 
+|:----------|:--------| 
+| easy test | 89.5 | 
+| hard test | 86.2 | 
+
+
+## Meme Selection 
+
+|     | R10@1 | R10@2 | R10@5 | RT@5 | 
+| easy test    |
+| MHERAD | 44.1 | 59.6 | 80.3 | 25.1 | 
+|SRS | 46.2 | 61.9 | 81.1 | - | 
+|MOD-GPT| 55.8 | 67.8 | 85.6 | 36.3 | 
+| hard test    |
+| MHERAD | 43.7 | 58.9 | 77.2 | 22.6 | 
+| SRS | 44.5 | 60.4 | 79.2 | - | 
+| MOD-GPT | 55.0 | 66.5 | 84.5 | 35.5 | 
+
+
+
+
 
 
 
