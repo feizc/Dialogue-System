@@ -81,13 +81,25 @@ We also provide the split statistics of MOD dataset.
 
 
 
-# Baseline Implementation 
+# MOD-GPT Model 
 
-1. Pretrain the expression image feature extractor on the basis of efficientnet 
+We present a unified multi-model dialogue model for reference solution.
 
-2. Pre-training our model, i.e., utterance sentiment prediction 
+Specifically, we concatenate all dialogue histories, including texts and memes,  into one context sentence, and use this sentence to predict the response. 
 
-3. Fine-tune with our model on new dataset 
+# Evaluation 
+
+All responses are generated using the Nucleus Sampling scheme with a threshold 0.9 and temperature 0.7. 
+
+## Text Response 
+
+|            | Perplexity | B-2 | B-4 | Dist-1 | Dist-2 |
+|:-----------|:------|:------|:----------|:----------|:--------| 
+| easy test              |
+|MHERAD  |41,644 | 1,000 | 1,000     | 1,530     |   |
+|CDial-GPT  |558,181| 13,666| 13,999    | 20,358    |   |
+|tokens      | 5,249 | 2,724 | 2,782     | 3,166     |   |
+|internet memes| 274 | 274   | 274       | 307       |   |
 
 
 
