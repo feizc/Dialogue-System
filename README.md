@@ -120,6 +120,7 @@ All responses are generated using the Nucleus Sampling scheme with a threshold 0
 ## Meme Selection 
 
 |     | R10@1 | R10@2 | R10@5 | RT@5 | 
+|:-----------|:------|:------|:----------|:----------|
 | easy test    |
 | MHERAD | 44.1 | 59.6 | 80.3 | 25.1 | 
 |SRS | 46.2 | 61.9 | 81.1 | - | 
