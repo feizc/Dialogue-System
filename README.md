@@ -87,6 +87,12 @@ We present a unified multi-model dialogue model for reference solution.
 
 Specifically,  we concatenate all dialogue histories, including texts and memes,  into one context sentence, and use this sentence to predict the response. 
 
+---
+
+![](./img/work.png)
+
+---
+
 ## Quck Start 
 
 
