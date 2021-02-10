@@ -1,4 +1,4 @@
-# Internet Meme incorporated Open-domain Dialogue 
+# Internet Meme Incorporated Open-domain Dialogue 
 
 * This project provides a large-scale internet Meme incorporated Open-domain Dialogue (MOD) dataset and a unified multi-modal dialog model trained on this dataset as reference resolution. 
 
